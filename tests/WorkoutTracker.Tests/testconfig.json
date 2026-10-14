@@ -1,0 +1,9 @@
+{
+  "platformOptions": {
+    "Coverlet": {
+      "include": "[WorkoutTracker]*",
+      "excludeByFile": "**/Migrations/*.cs",
+      "format": "opencover"
+    }
+  }
+}
