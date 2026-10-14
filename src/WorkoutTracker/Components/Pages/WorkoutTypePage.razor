@@ -1,0 +1,64 @@
+@page "/type/{Id:int}"
+@rendermode RenderModes.InteractiveServerNoPrerender
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject Clock Clock
+
+<PageTitle>@type?.Name</PageTitle>
+
+<main class="page">
+    <a class="back" href="">‹ All workouts</a>
+
+    @if (type is null)
+    {
+        <p class="muted">@(loaded ? "Workout type not found." : "Loading…")</p>
+    }
+    else
+    {
+        <h1>@type.Name</h1>
+        <div class="muted">@total workout@(total == 1 ? "" : "s") total</div>
+
+        <div class="heatmap-wrap">
+            <div class="heatmap">
+                @foreach (var d in days)
+                {
+                    <div class="cell @(d > today ? "future" : done.Contains(d) ? "done" : "") @(d == today ? "today" : "")"
+                         title="@d.ToString("ddd d MMM yyyy")"></div>
+                }
+            </div>
+        </div>
+
+        <div class="spacer"></div>
+        <a class="btn primary big" href="workout/@Id" style="text-align:center;text-decoration:none;display:block">Start workout</a>
+    }
+</main>
+
+@code {
+    const int Weeks = 16;
+
+    [Parameter] public int Id { get; set; }
+
+    WorkoutType? type;
+    bool loaded;
+    int total;
+    DateOnly today;
+    List<DateOnly> days = [];
+    HashSet<DateOnly> done = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        type = await db.WorkoutTypes.FindAsync(Id);
+        loaded = true;
+        if (type is null) return;
+
+        today = Clock.Today;
+        // Grid columns are weeks (Mon-Sun); the last column is the current week.
+        var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+        var start = monday.AddDays(-7 * (Weeks - 1));
+        days = Enumerable.Range(0, Weeks * 7).Select(start.AddDays).ToList();
+
+        var times = await db.Workouts.Where(w => w.WorkoutTypeId == Id).Select(w => w.StartedAtUtc).ToListAsync();
+        total = times.Count;
+        done = times.Select(Clock.ToLocalDate).ToHashSet();
+    }
+}

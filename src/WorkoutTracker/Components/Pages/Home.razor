@@ -1,0 +1,115 @@
+@page "/"
+@rendermode RenderModes.InteractiveServerNoPrerender
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject Clock Clock
+@inject WorkoutStateStore Store
+
+<PageTitle>Workouts</PageTitle>
+
+<main class="page">
+    <h1>Workouts</h1>
+
+    @if (types is null)
+    {
+        <p class="muted">Loading…</p>
+    }
+    else
+    {
+        @if (inProgress is { } p && types.FirstOrDefault(t => t.Type.Id == p.TypeId).Type is { } current)
+        {
+            <a class="list-item continue" href="workout/@current.Id">
+                <span>Continue @current.Name</span>
+                <span class="muted ago">@p.Reps rep@(p.Reps == 1 ? "" : "s")</span>
+            </a>
+        }
+        <div class="list">
+            @foreach (var t in types)
+            {
+                <a class="list-item" href="type/@t.Type.Id">
+                    <span>@t.Type.Name</span>
+                    @if (t.LastUtc is { } last)
+                    {
+                        <span class="muted ago">@Ago(last)</span>
+                    }
+                </a>
+            }
+        </div>
+        @if (types.Count == 0)
+        {
+            <p class="muted">No workout types yet. Tap + to add your first one.</p>
+        }
+    }
+
+</main>
+
+<button class="fab" aria-label="Add workout type" @onclick="Open">+</button>
+
+@if (showDialog)
+{
+    <div class="overlay" @onclick="Close">
+        <form class="dialog" @onclick:stopPropagation="true" @onsubmit="AddAsync">
+            <h2>New workout type</h2>
+            <input @bind="newName" @bind:event="oninput" placeholder="e.g. Push ups" maxlength="100" autofocus />
+            @if (error is not null)
+            {
+                <div class="error">@error</div>
+            }
+            <div class="row">
+                <button type="button" class="btn" @onclick="Close">Cancel</button>
+                <button type="submit" class="btn primary">Add</button>
+            </div>
+        </form>
+    </div>
+}
+
+@code {
+    List<(WorkoutType Type, DateTime? LastUtc)>? types;
+    string newName = "";
+    string? error;
+    bool showDialog;
+
+    void Open() { newName = ""; error = null; showDialog = true; }
+    void Close() => showDialog = false;
+
+    WorkoutState? inProgress;
+
+    protected override async Task OnInitializedAsync()
+    {
+        inProgress = await Store.LoadAsync();
+        await LoadAsync();
+    }
+
+    async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var rows = await db.WorkoutTypes
+            .OrderBy(t => t.Name)
+            .Select(t => new { Type = t, Last = t.Workouts.Max(w => (DateTime?)w.StartedAtUtc) })
+            .ToListAsync();
+        types = rows.Select(r => (r.Type, r.Last)).ToList();
+    }
+
+    string Ago(DateTime utc)
+    {
+        var days = Clock.Today.DayNumber - Clock.ToLocalDate(utc).DayNumber;
+        return days <= 0 ? "today" : days == 1 ? "1 day ago" : $"{days} days ago";
+    }
+
+    async Task AddAsync()
+    {
+        error = null;
+        var name = newName.Trim();
+        if (name.Length == 0) return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        if (await db.WorkoutTypes.AnyAsync(t => t.Name == name))
+        {
+            error = "That workout type already exists.";
+            return;
+        }
+        db.WorkoutTypes.Add(new WorkoutType { Name = name });
+        await db.SaveChangesAsync();
+        showDialog = false;
+        await LoadAsync();
+    }
+}

@@ -1,0 +1,202 @@
+@page "/workout/{Id:int}"
+@rendermode RenderModes.InteractiveServerNoPrerender
+@implements IAsyncDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject WorkoutStateStore Store
+
+<PageTitle>@type?.Name</PageTitle>
+
+<main class="page" @onclick="CancelAbandon">
+    @if (type is null)
+    {
+        <p class="muted">Loading…</p>
+    }
+    else
+    {
+        <h1 class="workout-title">@type.Name</h1>
+
+        <div class="timer @(state.Running ? "" : "paused")">@Elapsed</div>
+
+        <div class="reps">
+            <div class="muted">Repetitions</div>
+            <div class="count">@state.Reps</div>
+        </div>
+        @if (state.Resting)
+        {
+            <div class="rest-label">Rest</div>
+        }
+        else
+        {
+            <button class="btn primary big" @onclick="AddRepAsync" disabled="@(!state.Started)">+1</button>
+        }
+
+        <div class="spacer"></div>
+
+        @if (state.Resting)
+        {
+            <button class="btn warn" @onclick="EndRestAsync">Start</button>
+        }
+        else
+        {
+            <button class="btn warn" @onclick="ToggleTimerAsync">@(!state.Started ? "Start" : state.Running ? "Pause" : "Resume")</button>
+        }
+        <div class="row">
+            <button class="btn primary wide" @onclick="FinishAsync" disabled="@saving">Finish</button>
+            <button class="btn danger @(confirmAbandon ? "confirm" : "")" @onclick="AbandonAsync" @onclick:stopPropagation="true">
+                @(confirmAbandon ? "Are you sure?" : "Abandon")
+            </button>
+        </div>
+    }
+</main>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    WorkoutState state = new();
+    // True once the saved state belongs to this page, so Finish/Abandon don't clear another type's workout.
+    bool saved;
+    bool confirmAbandon;
+    bool saving;
+    PeriodicTimer? ticker;
+    string shown = "";
+    WorkoutType? type;
+
+    string Elapsed
+    {
+        get
+        {
+            var t = state.Elapsed(DateTime.UtcNow);
+            return $"{(int)t.TotalMinutes:00}:{t.Seconds:00}";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        type = await db.WorkoutTypes.FindAsync(Id);
+        if (type is null)
+        {
+            Nav.NavigateTo("");
+            return;
+        }
+
+        if (await Store.LoadAsync() is { } restored && restored.TypeId == Id)
+        {
+            state = restored;
+            saved = true;
+        }
+        else
+        {
+            // A workout of another type stays saved until this one is started.
+            state = new WorkoutState { TypeId = Id, StartedUtc = DateTime.UtcNow };
+        }
+
+        ticker = new PeriodicTimer(TimeSpan.FromMilliseconds(250));
+        _ = TickAsync(ticker);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await JS.InvokeVoidAsync("wakeLock.on");
+    }
+
+    async Task TickAsync(PeriodicTimer timer)
+    {
+        try
+        {
+            while (await timer.WaitForNextTickAsync())
+            {
+                await InvokeAsync(() =>
+                {
+                    var text = Elapsed;
+                    if (text == shown) return;
+                    shown = text;
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    async Task SaveAsync()
+    {
+        await Store.SaveAsync(state);
+        saved = true;
+    }
+
+    async Task ToggleTimerAsync()
+    {
+        var now = DateTime.UtcNow;
+        if (state.Running)
+        {
+            state.AccumulatedBeforePause = state.Elapsed(now);
+            state.RunningSinceUtc = null;
+        }
+        else
+        {
+            state.RunningSinceUtc = now;
+        }
+        state.Started = true;
+        await SaveAsync();
+    }
+
+    // Each rep starts a rest period, timed from zero.
+    async Task AddRepAsync()
+    {
+        state.Reps++;
+        state.AccumulatedBeforePause = TimeSpan.Zero;
+        state.RunningSinceUtc = DateTime.UtcNow;
+        state.Started = true;
+        state.Resting = true;
+        await SaveAsync();
+    }
+
+    // Leaving rest starts the next set, timed from zero.
+    async Task EndRestAsync()
+    {
+        state.Resting = false;
+        state.AccumulatedBeforePause = TimeSpan.Zero;
+        state.RunningSinceUtc = DateTime.UtcNow;
+        await SaveAsync();
+    }
+
+    // `saving` stays set after a successful save, so a tap before the navigation completes is ignored too.
+    async Task FinishAsync()
+    {
+        if (saving) return;
+        saving = true;
+        state.AccumulatedBeforePause = state.Elapsed(DateTime.UtcNow);
+        state.RunningSinceUtc = null;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.Workouts.Add(new Workout
+        {
+            WorkoutTypeId = Id,
+            StartedAtUtc = state.StartedUtc,
+            FinishedAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+        if (saved) await Store.ClearAsync();
+        Nav.NavigateTo($"type/{Id}");
+    }
+
+    async Task AbandonAsync()
+    {
+        if (!confirmAbandon)
+        {
+            confirmAbandon = true;
+            return;
+        }
+        if (saved) await Store.ClearAsync();
+        Nav.NavigateTo("");
+    }
+
+    void CancelAbandon() => confirmAbandon = false;
+
+    public async ValueTask DisposeAsync()
+    {
+        ticker?.Dispose();
+        try { await JS.InvokeVoidAsync("wakeLock.off"); } catch { }
+    }
+}
