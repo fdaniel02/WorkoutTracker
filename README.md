@@ -1,5 +1,7 @@
 # WorkoutTracker
 
+[![CI](https://github.com/fdaniel02/WorkoutTracker/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fdaniel02/WorkoutTracker/actions/workflows/ci.yml)
+
 ## Project layout
 
 ```
@@ -7,7 +9,11 @@ WorkoutTracker.slnx
 src/WorkoutTracker/          the app (Blazor Server)
 tests/WorkoutTracker.Tests/  unit tests (xUnit v3)
 scripts/                     SQL script for the database login
+.github/workflows/ci.yml     build and test on every pull request and push to main
 ```
+
+NuGet versions are locked in `packages.lock.json` (enabled in `Directory.Build.props`); CI restores in locked mode.
+After changing a package, commit the updated lock file too.
 
 ## Build and test
 
