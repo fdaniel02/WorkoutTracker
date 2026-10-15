@@ -1,0 +1,17 @@
+using Microsoft.EntityFrameworkCore;
+
+namespace WorkoutTracker.Data;
+
+public class DatabaseMigrator(IDbContextFactory<AppDbContext> dbFactory, ILogger<DatabaseMigrator> logger)
+{
+    // The SQL Server container may still be starting when the app boots.
+    public int MaxAttempts { get; init; } = 15;
+    public TimeSpan Delay { get; init; } = TimeSpan.FromSeconds(4);
+
+    public Task MigrateAsync(CancellationToken cancellationToken = default) =>
+        new StartupRetry(logger, MaxAttempts, Delay).RunAsync("Database migration", async ct =>
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            await db.Database.MigrateAsync(ct);
+        }, SqlErrors.IsPermanent, cancellationToken);
+}

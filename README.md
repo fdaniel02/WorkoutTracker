@@ -7,7 +7,7 @@
 ```
 WorkoutTracker.slnx
 src/WorkoutTracker/          the app (Blazor Server)
-tests/WorkoutTracker.Tests/  unit tests (xUnit v3)
+tests/WorkoutTracker.Tests/  unit, component (bUnit) and SQL Server tests (xUnit v3)
 scripts/                     SQL script for the database login
 .github/workflows/ci.yml     build and test on every pull request and push to main
 ```
@@ -26,6 +26,9 @@ dotnet test --coverlet
 Tests run on Microsoft Testing Platform (set in `global.json`). `--coverlet` writes an OpenCover report
 to `TestResults/coverage.opencover.*.xml`; the settings are in `tests/WorkoutTracker.Tests/testconfig.json`.
 
+Some tests run against a real SQL Server in a container (Testcontainers), so Docker must be running.
+The first run downloads the SQL Server image (about 1.5 GB).
+
 ## Configuration
 
 The app needs the connection string `ConnectionStrings:Default`. It is not stored in `appsettings.json`;
@@ -38,6 +41,15 @@ It only has rights to the `WorkoutTracker` database. Don't use `sa`.
 
 "Today", "N days ago" and the heatmap use the time zone in the `TimeZone` setting (an IANA id,
 default `Europe/Amsterdam` in `appsettings.json`), not the server's. Override it in Docker with `-e TimeZone=...`.
+
+### Logging
+
+Logs go to stdout as one JSON object per line, for a log collector (e.g. Grafana Alloy → Loki) to pick up.
+Locally (`Development`) they use the plain console format. Each log message has a fixed event id (see `src/WorkoutTracker/Log.cs`).
+
+At startup the app applies database migrations. While SQL Server is unreachable it tries 15 times, 4 seconds apart, and logs
+each failed attempt as a warning. If the host doesn't answer at all, each attempt also waits for the connect timeout (15 s by default). Errors that waiting won't fix (wrong password, missing database, locked or expired login) stop it at once.
+A startup failure is logged as `Critical` and the process exits with code 1.
 
 ### Local development
 

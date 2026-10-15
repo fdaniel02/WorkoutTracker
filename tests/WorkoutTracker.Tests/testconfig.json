@@ -3,6 +3,7 @@
     "Coverlet": {
       "include": "[WorkoutTracker]*",
       "excludeByFile": "**/Migrations/*.cs",
+      "excludeByAttribute": "GeneratedCodeAttribute",
       "format": "opencover"
     }
   }
