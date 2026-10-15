@@ -63,7 +63,9 @@ h1.workout-title { font-size: 2.2rem; text-align:center; }
 .add-form .btn { width:auto; padding:14px 20px; }
 .error { color:#ff7b72; font-size:.9rem; }
 .heatmap-wrap { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
-.heatmap { display:grid; grid-auto-flow:column; grid-template-rows:repeat(7,1fr); gap:3px; }
+/* minmax(0,…) keeps columns equal: a month label wider than a column overflows into the next one instead of widening its own. */
+.heatmap { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); grid-template-rows:auto repeat(7,1fr); gap:3px; }
+.month { font-size:.7rem; line-height:1; color:var(--muted); white-space:nowrap; }
 .cell { aspect-ratio:1; border-radius:3px; background:#21262d; }
 .cell.done { background:#2ea043; }
 .cell.future { visibility:hidden; }

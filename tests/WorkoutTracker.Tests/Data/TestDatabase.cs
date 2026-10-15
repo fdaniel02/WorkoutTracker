@@ -35,6 +35,13 @@ public sealed class TestDatabase : IDbContextFactory<AppDbContext>, IDisposable
         return type;
     }
 
+    public async Task AddWorkoutAsync(int workoutTypeId, DateTime startedAtUtc)
+    {
+        await using var db = new AppDbContext(testOptions);
+        db.Workouts.Add(new Workout { WorkoutTypeId = workoutTypeId, StartedAtUtc = startedAtUtc, FinishedAtUtc = startedAtUtc.AddMinutes(10) });
+        await db.SaveChangesAsync();
+    }
+
     public async Task<int> CountWorkoutsAsync()
     {
         await using var db = new AppDbContext(testOptions);
