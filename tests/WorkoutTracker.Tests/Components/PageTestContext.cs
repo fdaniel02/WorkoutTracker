@@ -14,13 +14,14 @@ namespace WorkoutTracker.Tests.Components;
 public abstract class PageTestContext : BunitContext
 {
     protected TestDatabase Database { get; }
+    protected FixedTimeProvider Time { get; } = new(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
 
     protected PageTestContext(params IInterceptor[] interceptors)
     {
         Database = new TestDatabase(interceptors);
         Services.AddSingleton<IDbContextFactory<AppDbContext>>(Database);
         Services.AddScoped<WorkoutStateStore>();
-        Services.AddSingleton(new Clock(TimeZoneInfo.FindSystemTimeZoneById("Europe/Amsterdam")));
+        Services.AddSingleton(new Clock(TimeZoneInfo.FindSystemTimeZoneById("Europe/Amsterdam"), Time));
 
         // Unplanned JS calls return default values: no wake lock, and no saved workout in localStorage.
         JSInterop.Mode = JSRuntimeMode.Loose;

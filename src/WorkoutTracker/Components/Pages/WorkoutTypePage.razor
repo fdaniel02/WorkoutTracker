@@ -19,10 +19,14 @@
 
         <div class="heatmap-wrap">
             <div class="heatmap">
-                @foreach (var d in days)
+                @foreach (var week in grid.Weeks)
                 {
-                    <div class="cell @(d > today ? "future" : done.Contains(d) ? "done" : "") @(d == today ? "today" : "")"
-                         title="@d.ToString("ddd d MMM yyyy")"></div>
+                    <div class="month">@week.MonthLabel</div>
+                    @foreach (var d in week.Days)
+                    {
+                        <div class="cell @(d > today ? "future" : done.Contains(d) ? "done" : "") @(d == today ? "today" : "")"
+                             title="@d.ToString("ddd d MMM yyyy")"></div>
+                    }
                 }
             </div>
         </div>
@@ -41,7 +45,7 @@
     bool loaded;
     int total;
     DateOnly today;
-    List<DateOnly> days = [];
+    HeatmapGrid grid = null!;
     HashSet<DateOnly> done = [];
 
     protected override async Task OnParametersSetAsync()
@@ -52,13 +56,10 @@
         if (type is null) return;
 
         today = Clock.Today;
-        // Grid columns are weeks (Mon-Sun); the last column is the current week.
-        var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
-        var start = monday.AddDays(-7 * (Weeks - 1));
-        days = Enumerable.Range(0, Weeks * 7).Select(start.AddDays).ToList();
+        grid = new HeatmapGrid(today, Weeks);
 
-        var times = await db.Workouts.Where(w => w.WorkoutTypeId == Id).Select(w => w.StartedAtUtc).ToListAsync();
-        total = times.Count;
+        total = await db.Workouts.CountAsync(w => w.WorkoutTypeId == Id);
+        var times = await db.Workouts.StartTimesSince(Id, Clock.StartOfDayUtc(grid.Start)).ToListAsync();
         done = times.Select(Clock.ToLocalDate).ToHashSet();
     }
 }

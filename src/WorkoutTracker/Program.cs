@@ -18,7 +18,7 @@ builder.Services.AddDbContextFactory<AppDbContext>(o =>
 var timeZoneId = builder.Configuration["TimeZone"]
     ?? throw new InvalidOperationException("Setting 'TimeZone' is missing (an IANA id, e.g. 'Europe/Amsterdam').");
 builder.Services.AddScoped<WorkoutStateStore>();
-builder.Services.AddSingleton(new Clock(TimeZoneInfo.FindSystemTimeZoneById(timeZoneId)));
+builder.Services.AddSingleton(new Clock(TimeZoneInfo.FindSystemTimeZoneById(timeZoneId), TimeProvider.System));
 
 var app = builder.Build();
 
