@@ -10,10 +10,21 @@ src/WorkoutTracker/          the app (Blazor Server)
 tests/WorkoutTracker.Tests/  unit, component (bUnit) and SQL Server tests (xUnit v3)
 scripts/                     SQL script for the database login
 .github/workflows/ci.yml     build and test on every pull request and push to main
+.github/dependabot.yml       weekly update pull requests for NuGet packages and GitHub Actions
 ```
 
 NuGet versions are locked in `packages.lock.json` (enabled in `Directory.Build.props`); CI restores in locked mode.
 After changing a package, commit the updated lock file too.
+
+The lock file also holds a package the SDK adds implicitly, whose version follows the SDK. So when you change the
+SDK version in `global.json`, regenerate the lock files in the same pull request:
+
+```powershell
+dotnet restore --force-evaluate
+```
+
+The Docker image builds with the newest .NET 10 SDK and runtime (`sdk:10.0` and `aspnet:10.0`) and restores without
+locked mode, so it picks up .NET patches on every build without depending on `global.json`.
 
 ## Build and test
 
