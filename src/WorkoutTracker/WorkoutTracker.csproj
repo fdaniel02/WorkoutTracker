@@ -6,6 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
     <UserSecretsId>0101a075-1e89-4ce0-9829-79f6c9720cd4</UserSecretsId>
+    <!-- The SDK infers this from the .razor files, but the Dockerfile restores before copying them,
+         which drops a package from the lock file and fails the locked restore. -->
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
   </PropertyGroup>
 
   <ItemGroup>
