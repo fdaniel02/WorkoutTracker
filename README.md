@@ -63,11 +63,20 @@ User-secrets are only loaded when `ASPNETCORE_ENVIRONMENT=Development` (the defa
 
 ### Docker
 
-Build the image from the repository root:
+Every push to `main` publishes the image to GitHub Container Registry, tagged `sha-<short commit sha>` and `latest`,
+after the tests pass and a Trivy scan finds no fixable critical vulnerabilities:
+
+```powershell
+docker pull ghcr.io/fdaniel02/workouttracker:latest
+```
+
+Or build the image yourself from the repository root:
 
 ```powershell
 docker build -t workouttracker .
 ```
+
+The container runs as the non-root `app` user.
 
 Pass the connection string as an environment variable (`__` stands for `:`):
 

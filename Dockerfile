@@ -1,7 +1,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY src/WorkoutTracker/WorkoutTracker.csproj src/WorkoutTracker/
-RUN dotnet restore src/WorkoutTracker/WorkoutTracker.csproj
+COPY Directory.Build.props ./
+COPY src/WorkoutTracker/WorkoutTracker.csproj src/WorkoutTracker/packages.lock.json src/WorkoutTracker/
+RUN dotnet restore src/WorkoutTracker/WorkoutTracker.csproj --locked-mode
 COPY src/ src/
 RUN dotnet publish src/WorkoutTracker/WorkoutTracker.csproj -c Release -o /app --no-restore
 
@@ -10,4 +11,5 @@ WORKDIR /app
 COPY --from=build /app .
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
+USER $APP_UID
 ENTRYPOINT ["dotnet", "WorkoutTracker.dll"]
