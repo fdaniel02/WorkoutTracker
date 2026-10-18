@@ -5,8 +5,6 @@ public class Clock(TimeZoneInfo timeZone, TimeProvider time)
 {
     public DateOnly Today => ToLocalDate(time.GetUtcNow().UtcDateTime);
 
-    public string ZoneName => timeZone.StandardName.Length == 0 ? null : timeZone.StandardName;
-
     public DateOnly ToLocalDate(DateTime utc) =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), timeZone));
 
