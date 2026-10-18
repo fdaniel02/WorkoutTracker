@@ -1,10 +1,12 @@
 using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
+using WorkoutTracker.Data;
 using WorkoutTracker.Tests.Data;
 
 namespace WorkoutTracker.Tests;
@@ -46,6 +48,18 @@ public sealed class StartupTests : IDisposable
         Assert.Equal(ConsoleFormatterNames.Json, console.FormatterName);
         Assert.False(loggers.CreateLogger("Microsoft.EntityFrameworkCore.Database.Command").IsEnabled(LogLevel.Information));
         Assert.True(loggers.CreateLogger("Microsoft.EntityFrameworkCore.Migrations").IsEnabled(LogLevel.Information));
+    }
+
+    [Fact]
+    public async Task Pages_retry_database_outages_but_the_migration_does_not()
+    {
+        var pages = factory.Services.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        var migration = factory.Services.GetRequiredKeyedService<IDbContextFactory<AppDbContext>>(DatabaseMigrator.DbFactoryKey);
+
+        await using var pageDb = await pages.CreateDbContextAsync(TestContext.Current.CancellationToken);
+        await using var migrationDb = await migration.CreateDbContextAsync(TestContext.Current.CancellationToken);
+        Assert.True(pageDb.Database.CreateExecutionStrategy().RetriesOnFailure);
+        Assert.False(migrationDb.Database.CreateExecutionStrategy().RetriesOnFailure);
     }
 
     public void Dispose() => factory.Dispose();

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using WorkoutTracker;
 using WorkoutTracker.Components;
 using WorkoutTracker.Data;
@@ -9,12 +10,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddDbContextFactory<AppDbContext>(o =>
-    o.UseSqlServer(builder.Configuration.GetConnectionString("Default")
-        ?? throw new InvalidOperationException(
-            "Connection string 'Default' is missing. Set it with " +
-            "'dotnet user-secrets set \"ConnectionStrings:Default\" \"...\"' for local development, " +
-            "or the environment variable 'ConnectionStrings__Default' in Docker.")));
+builder.Services.AddDbContextFactory<AppDbContext>((services, o) =>
+    o.UseAppDatabase(services.GetRequiredService<IConfiguration>(), retryOnFailure: true));
+// Without EF's retries: StartupRetry already retries the migration, and the two loops would multiply.
+builder.Services.AddKeyedSingleton<IDbContextFactory<AppDbContext>>(DatabaseMigrator.DbFactoryKey, (services, _) =>
+    new PooledDbContextFactory<AppDbContext>(new DbContextOptionsBuilder<AppDbContext>()
+        .UseAppDatabase(services.GetRequiredService<IConfiguration>(), retryOnFailure: false).Options));
 
 builder.Services.AddScoped<WorkoutStateStore>();
 builder.Services.AddSingleton<DatabaseMigrator>();
