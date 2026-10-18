@@ -5,6 +5,7 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject WorkoutStateStore Store
+@inject WorkoutMetrics Metrics
 
 <PageTitle>@type?.Name</PageTitle>
 
@@ -172,14 +173,21 @@
         saving = true;
         state.AccumulatedBeforePause = state.Elapsed(DateTime.UtcNow);
         state.RunningSinceUtc = null;
-        await using var db = await DbFactory.CreateDbContextAsync();
-        db.Workouts.Add(new Workout
+        var typeName = type!.Name;
+        using (var activity = Telemetry.ActivitySource.StartActivity("SaveWorkout"))
         {
-            WorkoutTypeId = Id,
-            StartedAtUtc = state.StartedUtc,
-            FinishedAtUtc = DateTime.UtcNow
-        });
-        await db.SaveChangesAsync();
+            activity?.SetTag("workouttracker.workout_type", typeName);
+            activity?.SetTag("workouttracker.reps", state.Reps);
+            await using var db = await DbFactory.CreateDbContextAsync();
+            db.Workouts.Add(new Workout
+            {
+                WorkoutTypeId = Id,
+                StartedAtUtc = state.StartedUtc,
+                FinishedAtUtc = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+        Metrics.WorkoutSaved(typeName);
         if (saved) await Store.ClearAsync();
         Nav.NavigateTo($"type/{Id}");
     }

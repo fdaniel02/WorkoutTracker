@@ -6,6 +6,15 @@ public static class WorkoutTypeCommands
 {
     public static async Task<bool> TryAddWorkoutTypeAsync(this AppDbContext db, string name, CancellationToken cancellationToken = default)
     {
+        using var activity = Telemetry.ActivitySource.StartActivity("AddWorkoutType");
+        activity?.SetTag("workouttracker.workout_type", name);
+        var added = await AddAsync(db, name, cancellationToken);
+        activity?.SetTag("workouttracker.added", added);
+        return added;
+    }
+
+    static async Task<bool> AddAsync(AppDbContext db, string name, CancellationToken cancellationToken)
+    {
         if (await db.WorkoutTypes.AnyAsync(t => t.Name == name, cancellationToken))
             return false;
 
