@@ -40,7 +40,7 @@
         }
         else
         {
-            <button class="btn warn" @onclick="ToggleTimerAsync">@(!state.Started ? "Start" : state.Running ? "Pause" : "Resume")</button>
+            <button class="btn warn" @onclick="ToggleTimerAsync">@ToggleLabel</button>
         }
         <div class="row">
             <button class="btn primary wide" @onclick="FinishAsync" disabled="@saving">Finish</button>
@@ -71,6 +71,13 @@
             return $"{(int)t.TotalMinutes:00}:{t.Seconds:00}";
         }
     }
+
+    string ToggleLabel => state switch
+    {
+        { Started: false } => "Start",
+        { Running: true } => "Pause",
+        _ => "Resume"
+    };
 
     protected override async Task OnInitializedAsync()
     {
@@ -104,20 +111,16 @@
 
     async Task TickAsync(PeriodicTimer timer)
     {
-        try
+        while (await timer.WaitForNextTickAsync())
         {
-            while (await timer.WaitForNextTickAsync())
+            await InvokeAsync(() =>
             {
-                await InvokeAsync(() =>
-                {
-                    var text = Elapsed;
-                    if (text == shown) return;
-                    shown = text;
-                    StateHasChanged();
-                });
-            }
+                var text = Elapsed;
+                if (text == shown) return;
+                shown = text;
+                StateHasChanged();
+            });
         }
-        catch (ObjectDisposedException) { }
     }
 
     async Task SaveAsync()
@@ -197,6 +200,13 @@
     public async ValueTask DisposeAsync()
     {
         ticker?.Dispose();
-        try { await JS.InvokeVoidAsync("wakeLock.off"); } catch { }
+        try
+        {
+            await JS.InvokeVoidAsync("wakeLock.off");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The browser is already gone, and it releases the wake lock together with the page.
+        }
     }
 }

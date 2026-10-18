@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,8 +29,12 @@ public sealed class StartupTests : IDisposable
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/", TestContext.Current.CancellationToken);
+        var html = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
 
-        response.EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
+        // The page renders without prerendering, so only the app shell that starts Blazor is in the response.
+        Assert.Contains("_framework/blazor.web", html);
     }
 
     [Fact]

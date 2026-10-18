@@ -1,6 +1,7 @@
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.JSInterop;
 using WorkoutTracker.Components.Pages;
 using WorkoutTracker.Tests.Data;
 
@@ -39,6 +40,31 @@ public class WorkoutPageTests : PageTestContext
 
         Assert.Equal(1, await Database.CountWorkoutsAsync());
         Assert.EndsWith($"type/{typeId}", Services.GetRequiredService<NavigationManager>().Uri);
+    }
+
+    [Fact]
+    public async Task Timer_button_shows_start_then_pause_then_resume()
+    {
+        var type = await Database.AddWorkoutTypeAsync("Push-ups");
+        var page = Render<WorkoutPage>(p => p.Add(x => x.Id, type.Id));
+        page.WaitForElement("button.wide");
+
+        await Button(page, "Start").ClickAsync();
+        await Button(page, "Pause").ClickAsync();
+
+        Assert.NotNull(Button(page, "Resume"));
+    }
+
+    [Fact]
+    public async Task Leaving_the_page_after_the_browser_disconnected_does_not_throw()
+    {
+        JSInterop.SetupVoid("wakeLock.off").SetException(new JSDisconnectedException("Circuit gone"));
+        await StartWorkoutAsync();
+
+        var exception = await Record.ExceptionAsync(DisposeComponentsAsync);
+
+        Assert.Null(exception);
+        JSInterop.VerifyInvoke("wakeLock.off");
     }
 
     [Fact(Timeout = 10_000)]

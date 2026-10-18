@@ -92,7 +92,12 @@
     string Ago(DateTime utc)
     {
         var days = Clock.Today.DayNumber - Clock.ToLocalDate(utc).DayNumber;
-        return days <= 0 ? "today" : days == 1 ? "1 day ago" : $"{days} days ago";
+        return days switch
+        {
+            <= 0 => "today",
+            1 => "1 day ago",
+            _ => $"{days} days ago"
+        };
     }
 
     async Task AddAsync()

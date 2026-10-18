@@ -7,14 +7,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<WorkoutType> WorkoutTypes => Set<WorkoutType>();
     public DbSet<Workout> Workouts => Set<Workout>();
 
-    protected override void OnModelCreating(ModelBuilder b)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        b.Entity<WorkoutType>(e =>
+        modelBuilder.Entity<WorkoutType>(e =>
         {
             e.Property(x => x.Name).HasMaxLength(100).IsRequired();
             e.HasIndex(x => x.Name).IsUnique();
         });
-        b.Entity<Workout>(e =>
+        modelBuilder.Entity<Workout>(e =>
         {
             e.HasOne(x => x.WorkoutType).WithMany(t => t.Workouts)
                 .HasForeignKey(x => x.WorkoutTypeId).OnDelete(DeleteBehavior.Cascade);
