@@ -2,8 +2,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace WorkoutTracker.Data;
 
-public class DatabaseMigrator(IDbContextFactory<AppDbContext> dbFactory, ILogger<DatabaseMigrator> logger)
+public class DatabaseMigrator(
+    [FromKeyedServices(DatabaseMigrator.DbFactoryKey)] IDbContextFactory<AppDbContext> dbFactory, ILogger<DatabaseMigrator> logger)
 {
+    public const string DbFactoryKey = "migration";
+
     // The SQL Server container may still be starting when the app boots.
     public int MaxAttempts { get; init; } = 15;
     public TimeSpan Delay { get; init; } = TimeSpan.FromSeconds(4);
