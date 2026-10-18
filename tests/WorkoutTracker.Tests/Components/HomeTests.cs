@@ -1,4 +1,5 @@
 using Bunit;
+using Microsoft.EntityFrameworkCore;
 using WorkoutTracker.Components.Pages;
 
 namespace WorkoutTracker.Tests.Components;
@@ -21,6 +22,36 @@ public class HomeTests : PageTestContext
             .Select(item => item.QuerySelector(".ago")?.TextContent)
             .ToList();
         Assert.Equal(["today", "1 day ago", "3 days ago", null], ago);
+    }
+
+    [Fact]
+    public async Task Adding_a_new_name_closes_the_dialog_and_lists_it()
+    {
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        await page.Find(".fab").ClickAsync();
+        await page.Find(".dialog input").InputAsync("  Push ups ");
+        await page.Find(".dialog").SubmitAsync();
+
+        page.WaitForAssertion(() => Assert.Empty(page.FindAll(".dialog")));
+        Assert.Equal(["Push ups"], page.FindAll(".list .list-item span:first-child").Select(s => s.TextContent));
+    }
+
+    [Fact]
+    public async Task Adding_an_existing_name_shows_a_message_and_keeps_the_dialog_open()
+    {
+        await Database.AddWorkoutTypeAsync("Push ups");
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        await page.Find(".fab").ClickAsync();
+        await page.Find(".dialog input").InputAsync("Push ups");
+        await page.Find(".dialog").SubmitAsync();
+
+        page.WaitForAssertion(() => Assert.Equal("That workout type already exists.", page.Find(".dialog .error").TextContent));
+        await using var db = Database.CreateDbContext();
+        Assert.Equal(1, await db.WorkoutTypes.CountAsync(Xunit.TestContext.Current.CancellationToken));
     }
 
     async Task AddTypeLastDoneAsync(string name, DateTime lastUtc)
