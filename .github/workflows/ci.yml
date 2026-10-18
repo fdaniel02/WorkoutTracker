@@ -26,7 +26,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # Sonar needs the full history to tell new code from old.
           fetch-depth: 0
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -39,7 +38,6 @@ jobs:
 
       - run: dotnet tool restore
 
-      # Pull requests from forks get no secrets; they still build and test, without the scan.
       - if: env.SONAR_TOKEN != ''
         run: >
           dotnet sonarscanner begin
@@ -51,8 +49,6 @@ jobs:
           /d:sonar.exclusions=**/Migrations/**
           /d:sonar.coverage.exclusions=**/Migrations/**
 
-      # No -warnaserror: it would turn Sonar's findings into build errors. Warnings reach SonarCloud
-      # (compiler ones as external issues), where the quality gate blocks new ones.
       - run: dotnet build -c Release --no-restore
 
       - run: dotnet test -c Release --no-build --coverlet
