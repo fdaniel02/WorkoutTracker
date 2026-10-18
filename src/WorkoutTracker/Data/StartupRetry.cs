@@ -5,7 +5,8 @@ public class StartupRetry(ILogger logger, int maxAttempts, TimeSpan delay)
     public async Task RunAsync(
         string operation, Func<CancellationToken, Task> action, Func<Exception, bool> isPermanent, CancellationToken cancellationToken = default)
     {
-        for (var attempt = 1; ; attempt++)
+        var attempt = 1;
+        while (true)
         {
             try
             {
@@ -20,6 +21,7 @@ public class StartupRetry(ILogger logger, int maxAttempts, TimeSpan delay)
                 logger.StartupAttemptFailed(operation, attempt, maxAttempts, ex.GetType().Name, ex.Message);
             }
             await Task.Delay(delay, cancellationToken);
+            attempt++;
         }
     }
 }

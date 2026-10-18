@@ -24,7 +24,7 @@
                     <div class="month">@week.MonthLabel</div>
                     @foreach (var d in week.Days)
                     {
-                        <div class="cell @(d > today ? "future" : done.Contains(d) ? "done" : "") @(d == today ? "today" : "")"
+                        <div class="@CellClass(d)"
                              title="@d.ToString("ddd d MMM yyyy")"></div>
                     }
                 }
@@ -61,5 +61,17 @@
         total = await db.Workouts.CountAsync(w => w.WorkoutTypeId == Id);
         var times = await db.Workouts.StartTimesSince(Id, Clock.StartOfDayUtc(grid.Start)).ToListAsync();
         done = times.Select(Clock.ToLocalDate).ToHashSet();
+    }
+
+    string CellClass(DateOnly day)
+    {
+        var cssClass = "cell";
+        if (day > today)
+            cssClass += " future";
+        else if (done.Contains(day))
+            cssClass += " done";
+        if (day == today)
+            cssClass += " today";
+        return cssClass;
     }
 }
