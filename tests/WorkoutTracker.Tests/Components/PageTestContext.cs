@@ -21,6 +21,8 @@ public abstract class PageTestContext : BunitContext
         Database = new TestDatabase(interceptors);
         Services.AddSingleton<IDbContextFactory<AppDbContext>>(Database);
         Services.AddScoped<WorkoutStateStore>();
+        Services.AddMetrics();
+        Services.AddSingleton<WorkoutMetrics>();
         Services.AddSingleton(new Clock(TimeZoneInfo.FindSystemTimeZoneById("Europe/Amsterdam"), Time));
 
         // Unplanned JS calls return default values: no wake lock, and no saved workout in localStorage.

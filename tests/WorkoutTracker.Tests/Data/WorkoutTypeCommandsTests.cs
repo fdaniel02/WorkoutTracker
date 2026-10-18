@@ -65,6 +65,18 @@ public sealed class WorkoutTypeCommandsTests(SqlServerFixture sqlServer) : IAsyn
         Assert.Equal(["Push ups"], await NamesAsync());
     }
 
+    [Fact]
+    public async Task Each_add_records_a_span_with_its_result()
+    {
+        using var spans = new ActivityCollector(a => a.OperationName == "AddWorkoutType" && Equals(a.GetTagItem("workouttracker.workout_type"), "Lunges"));
+        await using var db = NewContext();
+
+        await db.TryAddWorkoutTypeAsync("Lunges", TestContext.Current.CancellationToken);
+        await db.TryAddWorkoutTypeAsync("Lunges", TestContext.Current.CancellationToken);
+
+        Assert.Equal([true, false], spans.Stopped.Select(s => s.GetTagItem("workouttracker.added")));
+    }
+
     sealed class BeforeSaveInterceptor(Func<Task> beforeSave) : SaveChangesInterceptor
     {
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(

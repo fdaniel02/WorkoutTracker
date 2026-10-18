@@ -17,6 +17,9 @@ builder.Services.AddKeyedSingleton<IDbContextFactory<AppDbContext>>(DatabaseMigr
     new PooledDbContextFactory<AppDbContext>(new DbContextOptionsBuilder<AppDbContext>()
         .UseAppDatabase(services.GetRequiredService<IConfiguration>(), retryOnFailure: false).Options));
 
+builder.Services.AddAppTelemetry(builder.Configuration);
+builder.Services.AddSingleton<WorkoutMetrics>();
+
 builder.Services.AddScoped<WorkoutStateStore>();
 builder.Services.AddSingleton<DatabaseMigrator>();
 // Resolved after Build(), so a bad setting is logged like any other startup error.

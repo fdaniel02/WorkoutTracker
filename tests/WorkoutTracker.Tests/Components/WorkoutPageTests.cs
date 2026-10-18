@@ -1,6 +1,8 @@
+using System.Diagnostics.Metrics;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.Metrics.Testing;
 using Microsoft.JSInterop;
 using WorkoutTracker.Components.Pages;
 using WorkoutTracker.Tests.Data;
@@ -40,6 +42,25 @@ public class WorkoutPageTests : PageTestContext
 
         Assert.Equal(1, await Database.CountWorkoutsAsync());
         Assert.EndsWith($"type/{typeId}", Services.GetRequiredService<NavigationManager>().Uri);
+    }
+
+    [Fact]
+    public async Task Finish_records_a_span_and_counts_the_workout()
+    {
+        using var spans = new ActivityCollector(a => a.OperationName == "SaveWorkout");
+        using var saved = new MetricCollector<long>(Services.GetRequiredService<IMeterFactory>(), Telemetry.Name, "workouttracker.workouts.saved");
+        var (page, _) = await StartWorkoutAsync();
+        await Button(page, "+1").ClickAsync();
+        saveGate.Release();
+
+        await Button(page, "Finish").ClickAsync();
+
+        var span = Assert.Single(spans.Stopped);
+        Assert.Equal("Push-ups", span.GetTagItem("workouttracker.workout_type"));
+        Assert.Equal(1, span.GetTagItem("workouttracker.reps"));
+        var measurement = Assert.Single(saved.GetMeasurementSnapshot());
+        Assert.Equal(1, measurement.Value);
+        Assert.Equal("Push-ups", measurement.Tags["workouttracker.workout_type"]);
     }
 
     [Fact]
