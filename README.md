@@ -1,6 +1,7 @@
 # WorkoutTracker
 
 [![CI](https://github.com/fdaniel02/WorkoutTracker/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fdaniel02/WorkoutTracker/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=fdaniel02_WorkoutTracker&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=fdaniel02_WorkoutTracker)
 
 ## Project layout
 
