@@ -1,4 +1,5 @@
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using WorkoutTracker.Data;
 
 namespace WorkoutTracker.Tests.Data;
@@ -43,5 +44,32 @@ public class SqlErrorsTests(SqlServerFixture sqlServer)
     public void Errors_other_than_SqlException_are_permanent()
     {
         Assert.True(SqlErrors.IsPermanent(new ArgumentException("Format of the initialization string is not valid")));
+    }
+
+    [Fact]
+    public async Task Unique_constraint_violation_is_a_unique_violation()
+    {
+        await using var connection = new SqlConnection(sqlServer.ConnectionString("master"));
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var command = new SqlCommand("CREATE TABLE #t (Name nvarchar(10) UNIQUE); INSERT #t VALUES ('a'), ('a');", connection);
+
+        var error = await Assert.ThrowsAsync<SqlException>(() => command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(2627, error.Number);
+        Assert.True(SqlErrors.IsUniqueViolation(new DbUpdateException("Save failed", error)));
+    }
+
+    [Fact]
+    public async Task Other_sql_errors_are_not_a_unique_violation()
+    {
+        var error = await OpenFails(sqlServer.ConnectionString(SqlServerFixture.NewDatabaseName()));
+
+        Assert.False(SqlErrors.IsUniqueViolation(new DbUpdateException("Save failed", error)));
+    }
+
+    [Fact]
+    public void Errors_other_than_SqlException_are_not_a_unique_violation()
+    {
+        Assert.False(SqlErrors.IsUniqueViolation(new DbUpdateException("Save failed", new InvalidOperationException())));
     }
 }

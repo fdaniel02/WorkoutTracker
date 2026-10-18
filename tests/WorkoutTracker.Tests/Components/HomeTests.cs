@@ -25,6 +25,20 @@ public class HomeTests : PageTestContext
     }
 
     [Fact]
+    public async Task Adding_a_new_name_closes_the_dialog_and_lists_it()
+    {
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        await page.Find(".fab").ClickAsync();
+        await page.Find(".dialog input").InputAsync("  Push ups ");
+        await page.Find(".dialog").SubmitAsync();
+
+        page.WaitForAssertion(() => Assert.Empty(page.FindAll(".dialog")));
+        Assert.Equal(["Push ups"], page.FindAll(".list .list-item span:first-child").Select(s => s.TextContent));
+    }
+
+    [Fact]
     public async Task Adding_an_existing_name_shows_a_message_and_keeps_the_dialog_open()
     {
         await Database.AddWorkoutTypeAsync("Push ups");

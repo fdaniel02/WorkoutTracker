@@ -6,7 +6,7 @@ namespace WorkoutTracker.Tests.Data;
 
 // SQL Server, not SQLite: the unique index error and the case-insensitive collation are what's being tested.
 [Collection("SqlServer")]
-public class WorkoutTypeCommandsTests(SqlServerFixture sqlServer) : IAsyncLifetime
+public sealed class WorkoutTypeCommandsTests(SqlServerFixture sqlServer) : IAsyncLifetime
 {
     readonly string connectionString = sqlServer.ConnectionString(SqlServerFixture.NewDatabaseName());
 
