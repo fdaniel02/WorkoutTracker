@@ -107,13 +107,11 @@
         if (name.Length == 0) return;
 
         await using var db = await DbFactory.CreateDbContextAsync();
-        if (await db.WorkoutTypes.AnyAsync(t => t.Name == name))
+        if (!await db.TryAddWorkoutTypeAsync(name))
         {
             error = "That workout type already exists.";
             return;
         }
-        db.WorkoutTypes.Add(new WorkoutType { Name = name });
-        await db.SaveChangesAsync();
         showDialog = false;
         await LoadAsync();
     }

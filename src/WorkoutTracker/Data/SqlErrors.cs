@@ -1,9 +1,12 @@
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 
 namespace WorkoutTracker.Data;
 
 public static class SqlErrors
 {
+    const int DuplicateKeyInUniqueIndex = 2601;
+    const int UniqueConstraintViolated = 2627;
     const int CannotOpenDatabase = 4060;
     const int LoginFailed = 18456;
     const int AccountLocked = 18486;
@@ -15,4 +18,7 @@ public static class SqlErrors
     // Anything that isn't a SqlException (e.g. a malformed connection string) won't go away by waiting either.
     public static bool IsPermanent(Exception exception) =>
         exception is not SqlException sql || Permanent.Contains(sql.Number);
+
+    public static bool IsUniqueViolation(DbUpdateException exception) =>
+        exception.InnerException is SqlException { Number: DuplicateKeyInUniqueIndex or UniqueConstraintViolated };
 }
