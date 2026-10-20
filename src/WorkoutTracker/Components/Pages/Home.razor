@@ -3,11 +3,29 @@
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject Clock Clock
 @inject WorkoutStateStore Store
+@inject IJSRuntime JS
 
 <PageTitle>Workouts</PageTitle>
 
 <main class="page">
-    <h1>Workouts</h1>
+    <div class="page-header">
+        <h1>Workouts</h1>
+        <button class="icon-btn sort" aria-label="@OrderLabel" title="@OrderLabel" @onclick="ToggleOrderAsync">
+            @if (order == TypeOrder.Name)
+            {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M6 4v16M2 16l4 4 4-4M14 10l3-7 3 7M15.3 7.5h3.4M14 14h6l-6 6h6" />
+                </svg>
+            }
+            else
+            {
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 7v5l3 2" />
+                </svg>
+            }
+        </button>
+    </div>
 
     @if (types is null)
     {
@@ -72,10 +90,16 @@
     void Close() => showDialog = false;
 
     WorkoutState? inProgress;
+    TypeOrder order;
+
+    string OrderLabel => order == TypeOrder.Name
+        ? "Sorted by name. Tap to sort by last workout."
+        : "Sorted by last workout, oldest first. Tap to sort by name.";
 
     protected override async Task OnInitializedAsync()
     {
         inProgress = await Store.LoadAsync();
+        order = TypeOrdering.Parse(await JS.InvokeAsync<string?>("typeOrder.load"));
         await LoadAsync();
     }
 
@@ -83,10 +107,16 @@
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         var rows = await db.WorkoutTypes
-            .OrderBy(t => t.Name)
             .Select(t => new { Type = t, Last = t.Workouts.Max(w => (DateTime?)w.StartedAtUtc) })
             .ToListAsync();
-        types = rows.Select(r => (r.Type, r.Last)).ToList();
+        types = TypeOrdering.Sort(rows.Select(r => (r.Type, r.Last)), order);
+    }
+
+    async Task ToggleOrderAsync()
+    {
+        order = order == TypeOrder.Name ? TypeOrder.LastDone : TypeOrder.Name;
+        if (types is not null) types = TypeOrdering.Sort(types, order);
+        await JS.InvokeVoidAsync("typeOrder.save", order.ToString());
     }
 
     string Ago(DateTime utc)

@@ -54,6 +54,59 @@ public class HomeTests : PageTestContext
         Assert.Equal(1, await db.WorkoutTypes.CountAsync(Xunit.TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task Types_are_sorted_by_name_by_default()
+    {
+        await AddTypesForSortingAsync();
+
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        Assert.Equal(["Burpees", "Push ups", "Squats"], TypeNames(page));
+        Assert.Equal("Sorted by name. Tap to sort by last workout.", page.Find(".sort").GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public async Task Sort_button_switches_to_last_workout_and_back_and_saves_each_choice()
+    {
+        await AddTypesForSortingAsync();
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        await page.Find(".sort").ClickAsync();
+
+        Assert.Equal(["Squats", "Burpees", "Push ups"], TypeNames(page));
+        Assert.Equal("Sorted by last workout, oldest first. Tap to sort by name.", page.Find(".sort").GetAttribute("title"));
+        Assert.Equal("LastDone", JSInterop.VerifyInvoke("typeOrder.save").Arguments[0]);
+
+        await page.Find(".sort").ClickAsync();
+
+        Assert.Equal(["Burpees", "Push ups", "Squats"], TypeNames(page));
+        Assert.Equal("Name", JSInterop.VerifyInvoke("typeOrder.save", calledTimes: 2)[1].Arguments[0]);
+    }
+
+    [Fact]
+    public async Task Saved_order_is_used_when_the_page_opens()
+    {
+        await AddTypesForSortingAsync();
+        JSInterop.Setup<string?>("typeOrder.load").SetResult("LastDone");
+
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        Assert.Equal(["Squats", "Burpees", "Push ups"], TypeNames(page));
+    }
+
+    async Task AddTypesForSortingAsync()
+    {
+        await AddTypeLastDoneAsync("Push ups", new DateTime(2026, 10, 14, 8, 0, 0, DateTimeKind.Utc));
+        await AddTypeLastDoneAsync("Burpees", new DateTime(2026, 10, 2, 8, 0, 0, DateTimeKind.Utc));
+        await Database.AddWorkoutTypeAsync("Squats");
+    }
+
+    static string[] TypeNames(IRenderedComponent<Home> page) =>
+        [.. page.FindAll(".list .list-item span:first-child").Select(s => s.TextContent)];
+
     async Task AddTypeLastDoneAsync(string name, DateTime lastUtc)
     {
         var type = await Database.AddWorkoutTypeAsync(name);
