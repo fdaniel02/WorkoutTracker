@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -17,9 +18,13 @@ public sealed class StartupTests : IDisposable
 {
     readonly WebApplicationFactory<Program> factory;
 
+    readonly SqlServerFixture sqlServer;
+    readonly string databaseName = SqlServerFixture.NewDatabaseName();
+
     public StartupTests(SqlServerFixture sqlServer)
     {
-        var connectionString = sqlServer.ConnectionString(SqlServerFixture.NewDatabaseName());
+        this.sqlServer = sqlServer;
+        var connectionString = sqlServer.ConnectionString(databaseName);
         factory = new WebApplicationFactory<Program>().WithWebHostBuilder(b => b
             .UseEnvironment("Production")
             .UseSetting("ConnectionStrings:Default", connectionString));
@@ -60,6 +65,44 @@ public sealed class StartupTests : IDisposable
         await using var migrationDb = await migration.CreateDbContextAsync(TestContext.Current.CancellationToken);
         Assert.True(pageDb.Database.CreateExecutionStrategy().RetriesOnFailure);
         Assert.False(migrationDb.Database.CreateExecutionStrategy().RetriesOnFailure);
+    }
+
+    [Theory]
+    [InlineData("/healthz/live")]
+    [InlineData("/healthz/ready")]
+    public async Task Health_checks_report_healthy(string path)
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync(path, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Healthy", await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Without_the_database_only_readiness_fails()
+    {
+        using var client = factory.CreateClient();
+        await DropDatabaseAsync();
+
+        var live = await client.GetAsync("/healthz/live", TestContext.Current.CancellationToken);
+        var ready = await client.GetAsync("/healthz/ready", TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, live.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, ready.StatusCode);
+        Assert.Equal("Unhealthy", await ready.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    // The app can't start without its database (it migrates at startup), so the database goes away afterwards.
+    async Task DropDatabaseAsync()
+    {
+        SqlConnection.ClearAllPools();
+        await using var connection = new SqlConnection(sqlServer.ConnectionString("master"));
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var command = new SqlCommand(
+            $"ALTER DATABASE [{databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{databaseName}];", connection);
+        await command.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
     }
 
     public void Dispose() => factory.Dispose();
