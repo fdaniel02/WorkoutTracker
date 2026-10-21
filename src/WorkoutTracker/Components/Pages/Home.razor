@@ -98,6 +98,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        using var activity = Telemetry.ActivitySource.StartActivity("Load Home");
         inProgress = await Store.LoadAsync();
         order = TypeOrdering.Parse(await JS.InvokeAsync<string?>("typeOrder.load"));
         await LoadAsync();

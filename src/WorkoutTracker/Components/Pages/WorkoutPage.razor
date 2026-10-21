@@ -82,6 +82,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        using var activity = Telemetry.ActivitySource.StartActivity("Load WorkoutPage");
+        activity?.SetTag("workouttracker.workout_type_id", Id);
         await using var db = await DbFactory.CreateDbContextAsync();
         type = await db.WorkoutTypes.FindAsync(Id);
         if (type is null)

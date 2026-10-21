@@ -25,6 +25,17 @@ public class HomeTests : PageTestContext
     }
 
     [Fact]
+    public void Loading_the_page_records_a_span()
+    {
+        using var trace = new TestTrace();
+        using var spans = new ActivityCollector(a => a.OperationName == "Load Home" && a.TraceId == trace.Id);
+
+        Render<Home>().WaitForElement(".list");
+
+        Assert.Single(spans.Stopped);
+    }
+
+    [Fact]
     public async Task Adding_a_new_name_closes_the_dialog_and_lists_it()
     {
         var page = Render<Home>();

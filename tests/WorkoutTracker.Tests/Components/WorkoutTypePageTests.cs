@@ -44,6 +44,19 @@ public class WorkoutTypePageTests : PageTestContext
     }
 
     [Fact]
+    public async Task Loading_the_page_records_a_span_with_the_type_id()
+    {
+        var type = await Database.AddWorkoutTypeAsync("Push-ups");
+        using var trace = new TestTrace();
+        using var spans = new ActivityCollector(a => a.OperationName == "Load WorkoutTypePage" && a.TraceId == trace.Id);
+
+        RenderPage(type.Id);
+
+        var span = Assert.Single(spans.Stopped);
+        Assert.Equal(type.Id, span.GetTagItem("workouttracker.workout_type_id"));
+    }
+
+    [Fact]
     public async Task Total_counts_workouts_older_than_the_grid()
     {
         var type = await Database.AddWorkoutTypeAsync("Push-ups");
