@@ -22,12 +22,13 @@ builder.Services.AddSingleton<WorkoutMetrics>();
 
 builder.Services.AddScoped<WorkoutStateStore>();
 builder.Services.AddSingleton<DatabaseMigrator>();
+builder.Services.AddSingleton(TimeProvider.System);
 // Resolved after Build(), so a bad setting is logged like any other startup error.
-builder.Services.AddSingleton(_ =>
+builder.Services.AddSingleton(services =>
 {
     var timeZoneId = builder.Configuration["TimeZone"]
         ?? throw new InvalidOperationException("Setting 'TimeZone' is missing (an IANA id, e.g. 'Europe/Amsterdam').");
-    return new Clock(TimeZoneInfo.FindSystemTimeZoneById(timeZoneId), TimeProvider.System);
+    return new Clock(TimeZoneInfo.FindSystemTimeZoneById(timeZoneId), services.GetRequiredService<TimeProvider>());
 });
 
 // Disposing the app on exit flushes the console logger's queue, so the last error is written before the process ends.

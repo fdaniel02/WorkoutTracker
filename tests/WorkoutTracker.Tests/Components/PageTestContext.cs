@@ -23,6 +23,7 @@ public abstract class PageTestContext : BunitContext
         Services.AddScoped<WorkoutStateStore>();
         Services.AddMetrics();
         Services.AddSingleton<WorkoutMetrics>();
+        Services.AddSingleton<TimeProvider>(Time);
         Services.AddSingleton(new Clock(TimeZoneInfo.FindSystemTimeZoneById("Europe/Amsterdam"), Time));
 
         // Unplanned JS calls return default values: no wake lock, and no saved workout in localStorage.

@@ -1,9 +1,12 @@
 using System.Diagnostics.Metrics;
+using System.Text.Json;
 using Bunit;
 using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.Metrics.Testing;
 using Microsoft.JSInterop;
+using WorkoutTracker.Components;
 using WorkoutTracker.Components.Pages;
 using WorkoutTracker.Tests.Data;
 
@@ -99,6 +102,153 @@ public class WorkoutPageTests : PageTestContext
 
         Assert.Null(exception);
         JSInterop.VerifyInvoke("wakeLock.off");
+    }
+
+    [Fact]
+    public async Task Timer_shows_the_time_since_start()
+    {
+        var (page, _) = await StartWorkoutAsync();
+
+        Time.UtcNow += TimeSpan.FromSeconds(75);
+
+        page.WaitForAssertion(() => Assert.Equal("01:15", Timer(page)), TickTimeout);
+    }
+
+    [Fact]
+    public async Task Rep_starts_a_rest_and_Start_times_the_next_set_from_zero()
+    {
+        var (page, _) = await StartWorkoutAsync();
+        Time.UtcNow += TimeSpan.FromSeconds(40);
+
+        await Button(page, "+1").ClickAsync();
+
+        Assert.Equal("Rest", page.Find(".rest-label").TextContent);
+        Assert.Equal("1", page.Find(".reps .count").TextContent);
+        Assert.Equal("00:00", Timer(page));
+        Time.UtcNow += TimeSpan.FromSeconds(20);
+        page.WaitForAssertion(() => Assert.Equal("00:20", Timer(page)), TickTimeout);
+
+        await Button(page, "Start").ClickAsync();
+
+        Assert.Empty(page.FindAll(".rest-label"));
+        Assert.Equal("00:00", Timer(page));
+        Assert.NotNull(Button(page, "+1"));
+    }
+
+    [Fact]
+    public async Task Abandon_asks_first_and_a_tap_elsewhere_cancels()
+    {
+        var (page, _) = await StartWorkoutAsync();
+
+        await page.Find("button.danger").ClickAsync();
+        Assert.Equal("Are you sure?", page.Find("button.danger").TextContent.Trim());
+
+        await page.Find("main").ClickAsync();
+        Assert.Equal("Abandon", page.Find("button.danger").TextContent.Trim());
+        JSInterop.VerifyNotInvoke("workoutState.clear");
+    }
+
+    [Fact]
+    public async Task Abandon_tapped_twice_clears_the_workout_and_goes_home()
+    {
+        var (page, _) = await StartWorkoutAsync();
+
+        await page.Find("button.danger").ClickAsync();
+        await page.Find("button.danger").ClickAsync();
+
+        JSInterop.VerifyInvoke("workoutState.clear");
+        Assert.Equal("http://localhost/", Services.GetRequiredService<NavigationManager>().Uri);
+        Assert.Equal(0, await Database.CountWorkoutsAsync());
+    }
+
+    [Fact]
+    public async Task Saved_workout_of_this_type_is_restored()
+    {
+        var type = await Database.AddWorkoutTypeAsync("Push-ups");
+        SetUpSavedWorkout(new WorkoutState
+        {
+            TypeId = type.Id,
+            StartedUtc = Time.GetUtcNow().UtcDateTime.AddMinutes(-10),
+            Reps = 3,
+            Started = true,
+            RunningSinceUtc = Time.GetUtcNow().UtcDateTime.AddSeconds(-90)
+        });
+
+        var page = Render<WorkoutPage>(p => p.Add(x => x.Id, type.Id));
+
+        page.WaitForAssertion(() => Assert.Equal("3", page.Find(".reps .count").TextContent));
+        Assert.Equal("01:30", Timer(page));
+        Assert.NotNull(Button(page, "Pause"));
+    }
+
+    [Fact]
+    public async Task Finish_keeps_a_saved_workout_of_another_type()
+    {
+        var (page, _) = await OpenWithAnotherTypeSavedAsync();
+        saveGate.Release();
+
+        await Button(page, "Finish").ClickAsync();
+
+        Assert.Equal(1, await Database.CountWorkoutsAsync());
+        JSInterop.VerifyNotInvoke("workoutState.clear");
+    }
+
+    [Fact]
+    public async Task Abandon_keeps_a_saved_workout_of_another_type()
+    {
+        var (page, _) = await OpenWithAnotherTypeSavedAsync();
+
+        await page.Find("button.danger").ClickAsync();
+        await page.Find("button.danger").ClickAsync();
+
+        Assert.Equal("http://localhost/", Services.GetRequiredService<NavigationManager>().Uri);
+        JSInterop.VerifyNotInvoke("workoutState.clear");
+    }
+
+    [Fact]
+    public void Unknown_type_goes_home()
+    {
+        var navigation = Services.GetRequiredService<NavigationManager>();
+
+        var page = Render<WorkoutPage>(p => p.Add(x => x.Id, 999));
+
+        page.WaitForAssertion(() => Assert.Equal("http://localhost/", navigation.Uri));
+    }
+
+    [Fact]
+    public async Task Finish_saves_when_the_page_was_opened_and_when_it_was_finished()
+    {
+        var openedAt = Time.GetUtcNow().UtcDateTime;
+        var (page, typeId) = await StartWorkoutAsync();
+        Time.UtcNow += TimeSpan.FromMinutes(12);
+        saveGate.Release();
+
+        await Button(page, "Finish").ClickAsync();
+
+        await using var db = Database.CreateDbContext();
+        var workout = await db.Workouts.SingleAsync(Xunit.TestContext.Current.CancellationToken);
+        Assert.Equal(typeId, workout.WorkoutTypeId);
+        Assert.Equal(openedAt, workout.StartedAtUtc);
+        Assert.Equal(openedAt.AddMinutes(12), workout.FinishedAtUtc);
+    }
+
+    // The page redraws the timer on a real 250 ms tick, so a moved clock shows up within a few ticks.
+    static readonly TimeSpan TickTimeout = TimeSpan.FromSeconds(5);
+
+    static string Timer(IRenderedComponent<WorkoutPage> page) => page.Find(".timer").TextContent;
+
+    void SetUpSavedWorkout(WorkoutState state) =>
+        JSInterop.Setup<string?>("workoutState.load").SetResult(JsonSerializer.Serialize(state));
+
+    async Task<(IRenderedComponent<WorkoutPage> Page, int TypeId)> OpenWithAnotherTypeSavedAsync()
+    {
+        var other = await Database.AddWorkoutTypeAsync("Squats");
+        var type = await Database.AddWorkoutTypeAsync("Push-ups");
+        SetUpSavedWorkout(new WorkoutState { TypeId = other.Id, StartedUtc = Time.GetUtcNow().UtcDateTime, Reps = 5, Started = true });
+        var page = Render<WorkoutPage>(p => p.Add(x => x.Id, type.Id));
+        page.WaitForElement("button.wide");
+        Assert.Equal("0", page.Find(".reps .count").TextContent);
+        return (page, type.Id);
     }
 
     [Fact(Timeout = 10_000)]
