@@ -38,7 +38,7 @@ public sealed class TestDatabase : IDbContextFactory<AppDbContext>, IDisposable
     public async Task AddWorkoutAsync(int workoutTypeId, DateTime startedAtUtc)
     {
         await using var db = new AppDbContext(testOptions);
-        db.Workouts.Add(new Workout { WorkoutTypeId = workoutTypeId, StartedAtUtc = startedAtUtc, FinishedAtUtc = startedAtUtc.AddMinutes(10) });
+        db.Workouts.Add(new Workout { ClientId = Guid.NewGuid(), WorkoutTypeId = workoutTypeId, StartedAtUtc = startedAtUtc, FinishedAtUtc = startedAtUtc.AddMinutes(10) });
         await db.SaveChangesAsync();
     }
 
