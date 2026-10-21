@@ -7,6 +7,8 @@ namespace WorkoutTracker.Components;
 // stays correct after a reload, including the time the phone was locked.
 public class WorkoutState
 {
+    // A workout saved before ids existed has none in its JSON, so it gets a new one here when it's loaded.
+    public Guid Id { get; set; } = Guid.NewGuid();
     public int TypeId { get; set; }
     public DateTime StartedUtc { get; set; }
     public int Reps { get; set; }

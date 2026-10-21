@@ -160,18 +160,16 @@
         saving = true;
         state.Stop(UtcNow);
         var typeName = type!.Name;
-        using (var activity = Telemetry.ActivitySource.StartActivity("SaveWorkout"))
+        await using (var db = await DbFactory.CreateDbContextAsync())
         {
-            activity?.SetTag("workouttracker.workout_type", typeName);
-            activity?.SetTag("workouttracker.reps", state.Reps);
-            await using var db = await DbFactory.CreateDbContextAsync();
-            db.Workouts.Add(new Workout
+            var workout = new Workout
             {
+                ClientId = state.Id,
                 WorkoutTypeId = Id,
                 StartedAtUtc = state.StartedUtc,
                 FinishedAtUtc = UtcNow
-            });
-            await db.SaveChangesAsync();
+            };
+            await db.SaveWorkoutAsync(workout, typeName, state.Reps);
         }
         Metrics.WorkoutSaved(typeName);
         if (saved) await Store.ClearAsync();
