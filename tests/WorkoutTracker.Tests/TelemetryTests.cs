@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using OpenTelemetry;
+using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
@@ -42,6 +45,32 @@ public class TelemetryTests
 
         Assert.Equal("workouts-test", ServiceName(services.GetRequiredService<TracerProvider>()));
     }
+
+    [Fact]
+    public void SignalR_spans_and_untraced_requests_are_left_out()
+    {
+        using var services = Services(("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"));
+
+        var options = services.GetRequiredService<IOptionsMonitor<AspNetCoreTraceInstrumentationOptions>>().Get(Options.DefaultName);
+
+        Assert.False(options.EnableAspNetCoreSignalRSupport);
+        Assert.False(options.Filter!(new DefaultHttpContext { Request = { Path = "/app.css" } }));
+        Assert.True(options.Filter(new DefaultHttpContext { Request = { Path = "/type/3" } }));
+    }
+
+    [Theory]
+    [InlineData("/", true)]
+    [InlineData("/type/3", true)]
+    [InlineData("/workout/3", true)]
+    [InlineData("/app.o8n0hzhsih.css", false)]
+    [InlineData("/_framework/blazor.web.cd06xom9c5.js", false)]
+    [InlineData("/favicon.png", false)]
+    [InlineData("/_blazor", false)]
+    [InlineData("/_blazor/negotiate", false)]
+    [InlineData("/_blazor/initializers/", false)]
+    [InlineData("/_blazorish", true)]
+    public void Static_files_and_Blazor_connection_requests_are_not_traced(string path, bool traced) =>
+        Assert.Equal(traced, Telemetry.IsTraced(path));
 
     static object? ServiceName(TracerProvider tracing) =>
         tracing.GetResource().Attributes.Single(a => a.Key == "service.name").Value;

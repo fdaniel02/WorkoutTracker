@@ -28,9 +28,14 @@ public static class Telemetry
             .WithTracing(tracing => tracing
                 .AddSource(Name)
                 .AddSource(BlazorSources)
-                .AddAspNetCoreInstrumentation()
+                .AddAspNetCoreInstrumentation(options =>
+                {
+                    options.EnableAspNetCoreSignalRSupport = false;
+                    options.Filter = context => IsTraced(context.Request.Path);
+                })
                 .AddHttpClientInstrumentation()
-                .AddSqlClientInstrumentation())
+                .AddSqlClientInstrumentation()
+                .AddProcessor<SpanNames>())
             .WithMetrics(metrics => metrics
                 .AddMeter(Name)
                 .AddMeter(BlazorMeters)
@@ -42,4 +47,8 @@ public static class Telemetry
             .UseOtlpExporter();
         return services;
     }
+
+    // Static files and Blazor's connection requests (/_blazor/negotiate, the WebSocket) are plumbing. Nothing that is
+    // traced runs as their child: the Blazor event and SQL spans start their own traces.
+    public static bool IsTraced(PathString path) => !Path.HasExtension(path.Value) && !path.StartsWithSegments("/_blazor");
 }
