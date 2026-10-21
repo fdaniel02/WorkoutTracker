@@ -6,6 +6,7 @@
 @inject IJSRuntime JS
 @inject WorkoutStateStore Store
 @inject WorkoutMetrics Metrics
+@inject TimeProvider Time
 
 <PageTitle>@type?.Name</PageTitle>
 
@@ -64,11 +65,13 @@
     string shown = "";
     WorkoutType? type;
 
+    DateTime UtcNow => Time.GetUtcNow().UtcDateTime;
+
     string Elapsed
     {
         get
         {
-            var t = state.Elapsed(DateTime.UtcNow);
+            var t = state.Elapsed(UtcNow);
             return $"{(int)t.TotalMinutes:00}:{t.Seconds:00}";
         }
     }
@@ -100,7 +103,7 @@
         else
         {
             // A workout of another type stays saved until this one is started.
-            state = new WorkoutState { TypeId = Id, StartedUtc = DateTime.UtcNow };
+            state = new WorkoutState { TypeId = Id, StartedUtc = UtcNow };
         }
 
         ticker = new PeriodicTimer(TimeSpan.FromMilliseconds(250));
@@ -134,37 +137,19 @@
 
     async Task ToggleTimerAsync()
     {
-        var now = DateTime.UtcNow;
-        if (state.Running)
-        {
-            state.AccumulatedBeforePause = state.Elapsed(now);
-            state.RunningSinceUtc = null;
-        }
-        else
-        {
-            state.RunningSinceUtc = now;
-        }
-        state.Started = true;
+        state.ToggleTimer(UtcNow);
         await SaveAsync();
     }
 
-    // Each rep starts a rest period, timed from zero.
     async Task AddRepAsync()
     {
-        state.Reps++;
-        state.AccumulatedBeforePause = TimeSpan.Zero;
-        state.RunningSinceUtc = DateTime.UtcNow;
-        state.Started = true;
-        state.Resting = true;
+        state.AddRep(UtcNow);
         await SaveAsync();
     }
 
-    // Leaving rest starts the next set, timed from zero.
     async Task EndRestAsync()
     {
-        state.Resting = false;
-        state.AccumulatedBeforePause = TimeSpan.Zero;
-        state.RunningSinceUtc = DateTime.UtcNow;
+        state.EndRest(UtcNow);
         await SaveAsync();
     }
 
@@ -173,8 +158,7 @@
     {
         if (saving) return;
         saving = true;
-        state.AccumulatedBeforePause = state.Elapsed(DateTime.UtcNow);
-        state.RunningSinceUtc = null;
+        state.Stop(UtcNow);
         var typeName = type!.Name;
         using (var activity = Telemetry.ActivitySource.StartActivity("SaveWorkout"))
         {
@@ -185,7 +169,7 @@
             {
                 WorkoutTypeId = Id,
                 StartedAtUtc = state.StartedUtc,
-                FinishedAtUtc = DateTime.UtcNow
+                FinishedAtUtc = UtcNow
             });
             await db.SaveChangesAsync();
         }

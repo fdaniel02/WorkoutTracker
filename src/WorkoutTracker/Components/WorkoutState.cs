@@ -19,6 +19,43 @@ public class WorkoutState
 
     public TimeSpan Elapsed(DateTime nowUtc) =>
         AccumulatedBeforePause + (RunningSinceUtc is { } since ? nowUtc - since : TimeSpan.Zero);
+
+    public void ToggleTimer(DateTime nowUtc)
+    {
+        if (Running)
+            Stop(nowUtc);
+        else
+            RunningSinceUtc = nowUtc;
+        Started = true;
+    }
+
+    // Each rep starts a rest period, timed from zero.
+    public void AddRep(DateTime nowUtc)
+    {
+        Reps++;
+        RestartTimer(nowUtc);
+        Started = true;
+        Resting = true;
+    }
+
+    // Leaving rest starts the next set, timed from zero.
+    public void EndRest(DateTime nowUtc)
+    {
+        Resting = false;
+        RestartTimer(nowUtc);
+    }
+
+    public void Stop(DateTime nowUtc)
+    {
+        AccumulatedBeforePause = Elapsed(nowUtc);
+        RunningSinceUtc = null;
+    }
+
+    void RestartTimer(DateTime nowUtc)
+    {
+        AccumulatedBeforePause = TimeSpan.Zero;
+        RunningSinceUtc = nowUtc;
+    }
 }
 
 public class WorkoutStateStore(IJSRuntime js)
