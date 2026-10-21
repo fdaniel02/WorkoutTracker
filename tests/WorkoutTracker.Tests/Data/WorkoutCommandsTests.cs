@@ -94,6 +94,6 @@ public sealed class WorkoutCommandsTests(SqlServerFixture sqlServer) : IAsyncLif
         var span = Assert.Single(spans.Stopped);
         Assert.Equal("Push ups", span.GetTagItem("workouttracker.workout_type"));
         Assert.Equal(3, span.GetTagItem("workouttracker.reps"));
-        Assert.Equal(true, span.GetTagItem("workouttracker.already_saved"));
+        Assert.True(span.GetTagItem("workouttracker.already_saved") is true);
     }
 }

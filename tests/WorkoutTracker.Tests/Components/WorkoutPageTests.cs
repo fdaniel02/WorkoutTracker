@@ -238,7 +238,7 @@ public class WorkoutPageTests : PageTestContext
     {
         var (page, _) = await StartWorkoutAsync();
         var saved = JsonSerializer.Deserialize<WorkoutState>(
-            JSInterop.Invocations["workoutState.save"].Last().Arguments[0]!.ToString()!)!;
+            JSInterop.Invocations["workoutState.save"][^1].Arguments[0]!.ToString()!)!;
         saveGate.Release();
 
         await Button(page, "Finish").ClickAsync();
