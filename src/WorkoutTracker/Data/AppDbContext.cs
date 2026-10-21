@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(x => x.WorkoutType).WithMany(t => t.Workouts)
                 .HasForeignKey(x => x.WorkoutTypeId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(x => new { x.WorkoutTypeId, x.StartedAtUtc });
+            e.HasIndex(x => x.ClientId).IsUnique();
         });
     }
 }

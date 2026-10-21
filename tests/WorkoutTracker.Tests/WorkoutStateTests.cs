@@ -110,10 +110,27 @@ public class WorkoutStateTests
     }
 
     [Fact]
+    public void Each_workout_gets_its_own_id()
+    {
+        Assert.NotEqual(Guid.Empty, new WorkoutState().Id);
+        Assert.NotEqual(new WorkoutState().Id, new WorkoutState().Id);
+    }
+
+    [Fact]
+    public void Workout_saved_before_ids_existed_gets_one_when_loaded()
+    {
+        var state = JsonSerializer.Deserialize<WorkoutState>("""{"TypeId":3,"Reps":4,"Started":true}""")!;
+
+        Assert.NotEqual(Guid.Empty, state.Id);
+        Assert.Equal(4, state.Reps);
+    }
+
+    [Fact]
     public void Json_round_trip_keeps_all_fields()
     {
         var state = new WorkoutState
         {
+            Id = Guid.NewGuid(),
             TypeId = 3,
             StartedUtc = Now.AddMinutes(-10),
             Reps = 4,

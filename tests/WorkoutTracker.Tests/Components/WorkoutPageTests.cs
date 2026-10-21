@@ -63,7 +63,8 @@ public class WorkoutPageTests : PageTestContext
     [Fact]
     public async Task Finish_records_a_span_and_counts_the_workout()
     {
-        using var spans = new ActivityCollector(a => a.OperationName == "SaveWorkout");
+        using var trace = new TestTrace();
+        using var spans = new ActivityCollector(a => a.OperationName == "SaveWorkout" && a.TraceId == trace.Id);
         using var saved = new MetricCollector<long>(Services.GetRequiredService<IMeterFactory>(), Telemetry.Name, "workouttracker.workouts.saved");
         var (page, _) = await StartWorkoutAsync();
         await Button(page, "+1").ClickAsync();
@@ -230,6 +231,38 @@ public class WorkoutPageTests : PageTestContext
         Assert.Equal(typeId, workout.WorkoutTypeId);
         Assert.Equal(openedAt, workout.StartedAtUtc);
         Assert.Equal(openedAt.AddMinutes(12), workout.FinishedAtUtc);
+    }
+
+    [Fact]
+    public async Task Finish_saves_the_workout_with_its_id()
+    {
+        var (page, _) = await StartWorkoutAsync();
+        var saved = JsonSerializer.Deserialize<WorkoutState>(
+            JSInterop.Invocations["workoutState.save"][^1].Arguments[0]!.ToString()!)!;
+        saveGate.Release();
+
+        await Button(page, "Finish").ClickAsync();
+
+        await using var db = Database.CreateDbContext();
+        var workout = await db.Workouts.SingleAsync(Xunit.TestContext.Current.CancellationToken);
+        Assert.NotEqual(Guid.Empty, saved.Id);
+        Assert.Equal(saved.Id, workout.ClientId);
+    }
+
+    [Fact]
+    public async Task Restored_workout_keeps_its_id()
+    {
+        var type = await Database.AddWorkoutTypeAsync("Push-ups");
+        var id = Guid.NewGuid();
+        SetUpSavedWorkout(new WorkoutState { Id = id, TypeId = type.Id, StartedUtc = Time.GetUtcNow().UtcDateTime, Started = true });
+        var page = Render<WorkoutPage>(p => p.Add(x => x.Id, type.Id));
+        page.WaitForElement("button.wide");
+        saveGate.Release();
+
+        await Button(page, "Finish").ClickAsync();
+
+        await using var db = Database.CreateDbContext();
+        Assert.Equal(id, (await db.Workouts.SingleAsync(Xunit.TestContext.Current.CancellationToken)).ClientId);
     }
 
     // The page redraws the timer on a real 250 ms tick, so a moved clock shows up within a few ticks.
