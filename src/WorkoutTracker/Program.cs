@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using WorkoutTracker;
@@ -17,6 +18,7 @@ builder.Services.AddKeyedSingleton<IDbContextFactory<AppDbContext>>(DatabaseMigr
     new PooledDbContextFactory<AppDbContext>(new DbContextOptionsBuilder<AppDbContext>()
         .UseAppDatabase(services.GetRequiredService<IConfiguration>(), retryOnFailure: false).Options));
 
+builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>();
 builder.Services.AddAppTelemetry(builder.Configuration);
 builder.Services.AddSingleton<WorkoutMetrics>();
 
@@ -49,6 +51,10 @@ try
     app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 
     app.UseAntiforgery();
+
+    // Liveness without the database check: a database outage must not make Kubernetes restart the pod.
+    app.MapHealthChecks("/healthz/live", new HealthCheckOptions { Predicate = _ => false });
+    app.MapHealthChecks("/healthz/ready");
 
     app.MapStaticAssets();
     app.MapRazorComponents<App>()

@@ -48,7 +48,9 @@ public static class Telemetry
         return services;
     }
 
-    // Static files and Blazor's connection requests (/_blazor/negotiate, the WebSocket) are plumbing. Nothing that is
-    // traced runs as their child: the Blazor event and SQL spans start their own traces.
-    public static bool IsTraced(PathString path) => !Path.HasExtension(path.Value) && !path.StartsWithSegments("/_blazor");
+    // Static files, Blazor's connection requests (/_blazor/negotiate, the WebSocket) and health probes are plumbing.
+    // Nothing that is traced runs as their child: the Blazor event and SQL spans start their own traces. (The health
+    // check's own SQL span is dropped with its request, which is what we want.)
+    public static bool IsTraced(PathString path) =>
+        !Path.HasExtension(path.Value) && !path.StartsWithSegments("/_blazor") && !path.StartsWithSegments("/healthz");
 }

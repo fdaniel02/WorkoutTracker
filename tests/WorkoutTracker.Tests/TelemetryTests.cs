@@ -69,6 +69,8 @@ public class TelemetryTests
     [InlineData("/_blazor/negotiate", false)]
     [InlineData("/_blazor/initializers/", false)]
     [InlineData("/_blazorish", true)]
+    [InlineData("/healthz/live", false)]
+    [InlineData("/healthz/ready", false)]
     public void Static_files_and_Blazor_connection_requests_are_not_traced(string path, bool traced) =>
         Assert.Equal(traced, Telemetry.IsTraced(path));
 
