@@ -10,7 +10,7 @@
 
 <PageTitle>@type?.Name</PageTitle>
 
-<main class="page" @onclick="CancelAbandon">
+<main class="page">
     @if (type is null)
     {
         <p class="muted">Loading…</p>
@@ -53,9 +53,14 @@
         {
             <button class="btn warn" @onclick="ToggleTimerAsync">@ToggleLabel</button>
         }
+        @if (confirmAbandon)
+        {
+            @* Only while confirming: a click handler on <main> would make every tap on the page its own trace. *@
+            <div class="dismiss-layer" @onclick="CancelAbandon"></div>
+        }
         <div class="row">
             <button class="btn primary wide" @onclick="FinishAsync" disabled="@saving">Finish</button>
-            <button class="btn danger @(confirmAbandon ? "confirm" : "")" @onclick="AbandonAsync" @onclick:stopPropagation="true">
+            <button class="btn danger @(confirmAbandon ? "confirm" : "")" @onclick="AbandonAsync">
                 @(confirmAbandon ? "Are you sure?" : "Abandon")
             </button>
         </div>
