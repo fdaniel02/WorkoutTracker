@@ -36,12 +36,26 @@ public class HomeTests : PageTestContext
     }
 
     [Fact]
+    public async Task Add_button_in_the_header_opens_an_empty_dialog()
+    {
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+        var add = page.Find(".page-header .add");
+        Assert.Equal("Add workout type", add.GetAttribute("aria-label"));
+        Assert.Empty(page.FindAll(".dialog"));
+
+        await add.ClickAsync();
+
+        Assert.Equal("", page.Find(".dialog input").GetAttribute("value") ?? "");
+    }
+
+    [Fact]
     public async Task Adding_a_new_name_closes_the_dialog_and_lists_it()
     {
         var page = Render<Home>();
         page.WaitForElement(".list");
 
-        await page.Find(".fab").ClickAsync();
+        await page.Find(".page-header .add").ClickAsync();
         await page.Find(".dialog input").InputAsync("  Push ups ");
         await page.Find(".dialog").SubmitAsync();
 
@@ -56,7 +70,7 @@ public class HomeTests : PageTestContext
         var page = Render<Home>();
         page.WaitForElement(".list");
 
-        await page.Find(".fab").ClickAsync();
+        await page.Find(".page-header .add").ClickAsync();
         await page.Find(".dialog input").InputAsync("Push ups");
         await page.Find(".dialog").SubmitAsync();
 
