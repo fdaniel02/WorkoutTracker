@@ -164,9 +164,20 @@ public class WorkoutPageTests : PageTestContext
         await page.Find("button.danger").ClickAsync();
         Assert.Equal("Are you sure?", page.Find("button.danger").TextContent.Trim());
 
-        await page.Find("main").ClickAsync();
+        await page.Find(".dismiss-layer").ClickAsync();
         Assert.Equal("Abandon", page.Find("button.danger").TextContent.Trim());
+        Assert.Empty(page.FindAll(".dismiss-layer"));
         JSInterop.VerifyNotInvoke("workoutState.clear");
+    }
+
+    [Fact]
+    public async Task Taps_on_the_page_send_no_event_unless_Abandon_is_confirming()
+    {
+        var (page, _) = await StartWorkoutAsync();
+
+        Assert.Empty(page.FindAll(".dismiss-layer"));
+        // bUnit bubbles a click up to the ancestors' handlers, so none on <main> means +1, Start and Finish send only their own.
+        await Assert.ThrowsAsync<MissingEventHandlerException>(() => page.Find("main").ClickAsync());
     }
 
     [Fact]
