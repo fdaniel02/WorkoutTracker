@@ -124,7 +124,8 @@ public class WorkoutPageTests : PageTestContext
         await Button(page, "+1").ClickAsync();
 
         Assert.Equal("Rest", page.Find(".rest-label").TextContent);
-        Assert.Equal("1", page.Find(".reps .count").TextContent);
+        Assert.Equal(["1"], RepCircles(page));
+        Assert.Null(CurrentRep(page));
         Assert.Equal("00:00", Timer(page));
         Time.UtcNow += TimeSpan.FromSeconds(20);
         page.WaitForAssertion(() => Assert.Equal("00:20", Timer(page)), TickTimeout);
@@ -132,8 +133,27 @@ public class WorkoutPageTests : PageTestContext
         await Button(page, "Start").ClickAsync();
 
         Assert.Empty(page.FindAll(".rest-label"));
+        Assert.Equal("2", CurrentRep(page));
         Assert.Equal("00:00", Timer(page));
         Assert.NotNull(Button(page, "+1"));
+    }
+
+    [Fact]
+    public async Task Each_rep_adds_a_numbered_circle()
+    {
+        var (page, _) = await StartWorkoutAsync();
+        Assert.Empty(RepCircles(page));
+        Assert.Equal("1", CurrentRep(page));
+
+        for (var i = 0; i < 3; i++)
+        {
+            await Button(page, "+1").ClickAsync();
+            await Button(page, "Start").ClickAsync();
+        }
+
+        Assert.Equal(["1", "2", "3"], RepCircles(page));
+        Assert.Equal("4", CurrentRep(page));
+        Assert.Equal("3 repetitions", page.Find(".rep-circles").GetAttribute("aria-label"));
     }
 
     [Fact]
@@ -177,7 +197,8 @@ public class WorkoutPageTests : PageTestContext
 
         var page = Render<WorkoutPage>(p => p.Add(x => x.Id, type.Id));
 
-        page.WaitForAssertion(() => Assert.Equal("3", page.Find(".reps .count").TextContent));
+        page.WaitForAssertion(() => Assert.Equal(["1", "2", "3"], RepCircles(page)));
+        Assert.Equal("4", CurrentRep(page));
         Assert.Equal("01:30", Timer(page));
         Assert.NotNull(Button(page, "Pause"));
     }
@@ -270,6 +291,12 @@ public class WorkoutPageTests : PageTestContext
 
     static string Timer(IRenderedComponent<WorkoutPage> page) => page.Find(".timer").TextContent;
 
+    static IEnumerable<string> RepCircles(IRenderedComponent<WorkoutPage> page) =>
+        page.FindAll(".rep-circles .rep-circle:not(.current)").Select(c => c.TextContent);
+
+    static string? CurrentRep(IRenderedComponent<WorkoutPage> page) =>
+        page.FindAll(".rep-circles .rep-circle.current").SingleOrDefault()?.TextContent;
+
     void SetUpSavedWorkout(WorkoutState state) =>
         JSInterop.Setup<string?>("workoutState.load").SetResult(JsonSerializer.Serialize(state));
 
@@ -280,7 +307,7 @@ public class WorkoutPageTests : PageTestContext
         SetUpSavedWorkout(new WorkoutState { TypeId = other.Id, StartedUtc = Time.GetUtcNow().UtcDateTime, Reps = 5, Started = true });
         var page = Render<WorkoutPage>(p => p.Add(x => x.Id, type.Id));
         page.WaitForElement("button.wide");
-        Assert.Equal("0", page.Find(".reps .count").TextContent);
+        Assert.Empty(page.Find(".rep-circles").Children);
         return (page, type.Id);
     }
 

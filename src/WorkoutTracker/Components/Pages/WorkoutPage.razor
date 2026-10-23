@@ -23,7 +23,16 @@
 
         <div class="reps">
             <div class="muted">Repetitions</div>
-            <div class="count">@state.Reps</div>
+            <div class="rep-circles" role="img" aria-label="@RepsLabel">
+                @for (var rep = 1; rep <= state.Reps; rep++)
+                {
+                    <span class="rep-circle">@rep</span>
+                }
+                @if (state.Started && !state.Resting)
+                {
+                    <span class="rep-circle current">@(state.Reps + 1)</span>
+                }
+            </div>
         </div>
         @if (state.Resting)
         {
@@ -82,6 +91,8 @@
         { Running: true } => "Pause",
         _ => "Resume"
     };
+
+    string RepsLabel => state.Reps == 1 ? "1 repetition" : $"{state.Reps} repetitions";
 
     protected override async Task OnInitializedAsync()
     {
