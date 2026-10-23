@@ -47,6 +47,8 @@ h1 { font-size:1.6rem; margin:0; }
 .icon-btn { display:flex; align-items:center; justify-content:center; width:44px; height:44px; padding:0; border:1px solid var(--line); border-radius:12px; background:var(--card); color:var(--text); }
 .icon-btn:active { filter:brightness(.85); }
 .icon-btn svg { width:24px; height:24px; }
+.icon-btn.add { background:var(--accent); border-color:var(--accent); color:#fff; }
+.page-header .sort { margin-left:auto; }
 h1.workout-title { font-size: 2.2rem; text-align:center; }
 .muted { color:var(--muted); }
 .back { color:var(--muted); text-decoration:none; font-size:.95rem; }
@@ -86,8 +88,6 @@ h1.workout-title { font-size: 2.2rem; text-align:center; }
 /* "Are you sure?" may wrap on narrow phones; smaller text keeps the row height. */
 .btn.confirm { font-size:.9rem; line-height:1.1; padding-top:8px; padding-bottom:8px; }
 
-.fab { position:fixed; right:calc(20px + env(safe-area-inset-right)); bottom:calc(20px + env(safe-area-inset-bottom)); width:60px; height:60px; border-radius:50%; border:0; background:var(--accent); color:#fff; font-size:2rem; line-height:1; box-shadow:0 4px 14px rgba(0,0,0,.5); }
-.fab:active { filter:brightness(.85); }
 .overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:16px; z-index:10; }
 .dialog { width:100%; max-width:400px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:14px; }
 .dialog h2 { margin:0; font-size:1.2rem; }
