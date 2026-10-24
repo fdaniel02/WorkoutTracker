@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using WorkoutTracker;
@@ -17,6 +19,19 @@ builder.Services.AddDbContextFactory<AppDbContext>((services, o) =>
 builder.Services.AddKeyedSingleton<IDbContextFactory<AppDbContext>>(DatabaseMigrator.DbFactoryKey, (services, _) =>
     new PooledDbContextFactory<AppDbContext>(new DbContextOptionsBuilder<AppDbContext>()
         .UseAppDatabase(services.GetRequiredService<IConfiguration>(), retryOnFailure: false).Options));
+
+// In the database, not the container: keys lost on a restart make every browser's antiforgery cookie undecryptable.
+builder.Services.AddDataProtection()
+    .PersistKeysToDbContext<AppDbContext>()
+    .SetApplicationName("WorkoutTracker");
+
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // The proxy (Traefik) has no fixed IP, and the pod is only reachable through the cluster network.
+    o.KnownIPNetworks.Clear();
+    o.KnownProxies.Clear();
+});
 
 builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>();
 builder.Services.AddAppTelemetry(builder.Configuration);
@@ -40,6 +55,8 @@ try
 {
     app.Services.GetRequiredService<Clock>();
     await app.Services.GetRequiredService<DatabaseMigrator>().MigrateAsync();
+
+    app.UseForwardedHeaders();
 
     // Configure the HTTP request pipeline.
     if (!app.Environment.IsDevelopment())
