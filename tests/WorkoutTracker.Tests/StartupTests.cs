@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.SqlClient;
@@ -92,6 +93,39 @@ public sealed class StartupTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, live.StatusCode);
         Assert.Equal(HttpStatusCode.ServiceUnavailable, ready.StatusCode);
         Assert.Equal("Unhealthy", await ready.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
+    [InlineData("https", true)]
+    [InlineData(null, false)]
+    public async Task Hsts_is_sent_when_the_proxy_received_https(string? forwardedProto, bool expectHsts)
+    {
+        using var app = factory.WithWebHostBuilder(b => b.ConfigureServices(s =>
+            s.AddSingleton<IStartupFilter>(new RemoteIpStartupFilter(IPAddress.Parse("10.42.0.17")))));
+        using var client = app.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/healthz/live");
+        // UseHsts skips localhost.
+        request.Headers.Host = "workouttracker.example";
+        if (forwardedProto is not null)
+            request.Headers.Add("X-Forwarded-Proto", forwardedProto);
+
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectHsts, response.Headers.Contains("Strict-Transport-Security"));
+    }
+
+    // TestServer has no remote address; ForwardedHeaders only trusts loopback proxies unless told otherwise.
+    sealed class RemoteIpStartupFilter(IPAddress proxy) : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+        {
+            app.Use((context, nextMiddleware) =>
+            {
+                context.Connection.RemoteIpAddress = proxy;
+                return nextMiddleware(context);
+            });
+            next(app);
+        };
     }
 
     // The app can't start without its database (it migrates at startup), so the database goes away afterwards.
