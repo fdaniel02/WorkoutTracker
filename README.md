@@ -49,6 +49,10 @@ the app refuses to start without it.
 The database login is `workouttracker`, created by [scripts/create-sql-login.sql](scripts/create-sql-login.sql).
 It only has rights to the `WorkoutTracker` database. Don't use `sa`.
 
+The database uses the SIMPLE recovery model (the same script sets it). The cluster backs it up with nightly full
+backups only, so a restore can lose up to a day of workouts; there is no point-in-time restore. Under FULL recovery
+without log backups the transaction log would never be truncated and would keep growing.
+
 ### Time zone
 
 "Today", "N days ago" and the heatmap use the time zone in the `TimeZone` setting (an IANA id,

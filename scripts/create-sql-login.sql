@@ -8,6 +8,10 @@
 USE [master];
 GO
 
+-- Backups are nightly full backups only. Under FULL recovery without log backups the log is never truncated.
+ALTER DATABASE [WorkoutTracker] SET RECOVERY SIMPLE;
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = N'workouttracker')
     CREATE LOGIN [workouttracker]
         WITH PASSWORD = N'<STRONG_PASSWORD>',
