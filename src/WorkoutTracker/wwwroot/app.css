@@ -97,3 +97,21 @@ h1.workout-title { font-size: 2.2rem; text-align:center; }
 .dialog h2 { margin:0; font-size:1.2rem; }
 .dialog input { padding:14px; font-size:1rem; border-radius:12px; border:1px solid var(--line); background:var(--bg); color:var(--text); }
 .ago { font-size:.9rem; white-space:nowrap; }
+.tabs { display:flex; gap:4px; padding:4px; background:var(--card); border:1px solid var(--line); border-radius:12px; }
+.tab { flex:1; border:0; border-radius:9px; padding:10px; font-size:1rem; font-weight:600; background:transparent; color:var(--muted); }
+.tab.active { background:#30363d; color:var(--text); }
+.blocked { margin:0; padding:18px; text-align:center; background:var(--card); border:1px solid var(--line); border-radius:14px; color:var(--muted); }
+.blocked a { color:var(--text); }
+.link-btn { display:block; text-align:center; text-decoration:none; }
+/* Long names and targets wrap instead of widening the page. */
+.list-item > span { min-width:0; overflow-wrap:anywhere; }
+.target { flex:none; max-width:42%; font-size:.9rem; text-align:right; }
+.workout-target { text-align:center; font-size:1.1rem; margin-top:-8px; }
+.timer.small { font-size:3rem; padding-top:0; }
+.progress { text-align:center; margin-top:-8px; }
+.routine-item { justify-content:flex-start; }
+.routine-item .name { flex:1; }
+.routine-item .check { display:flex; align-items:center; justify-content:center; flex:none; width:26px; height:26px; border-radius:50%; border:2px solid var(--line); font-size:.9rem; font-weight:700; }
+.routine-item.done { color:var(--muted); }
+.routine-item.done .check { background:var(--accent); border-color:var(--accent); color:#fff; }
+.routine-item.next { border-color:var(--accent); }

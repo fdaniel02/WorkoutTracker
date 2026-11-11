@@ -1,0 +1,31 @@
+<div class="heatmap-wrap">
+    <div class="heatmap">
+        @foreach (var week in Grid.Weeks)
+        {
+            <div class="month">@week.MonthLabel</div>
+            @foreach (var d in week.Days)
+            {
+                <div class="@CellClass(d)"
+                     title="@d.ToString("ddd d MMM yyyy")"></div>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public HeatmapGrid Grid { get; set; } = null!;
+    [Parameter, EditorRequired] public DateOnly Today { get; set; }
+    [Parameter, EditorRequired] public IReadOnlySet<DateOnly> Done { get; set; } = null!;
+
+    string CellClass(DateOnly day)
+    {
+        var cssClass = "cell";
+        if (day > Today)
+            cssClass += " future";
+        else if (Done.Contains(day))
+            cssClass += " done";
+        if (day == Today)
+            cssClass += " today";
+        return cssClass;
+    }
+}

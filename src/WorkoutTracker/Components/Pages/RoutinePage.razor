@@ -1,0 +1,116 @@
+@page "/routine/{Id:int}"
+@rendermode RenderModes.InteractiveServerNoPrerender
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject Clock Clock
+@inject NavigationManager Nav
+@inject RoutineStateStore Routines
+@inject WorkoutStateStore Workouts
+@inject TimeProvider Time
+
+<PageTitle>@routine?.Name</PageTitle>
+
+<main class="page">
+    <a class="back" href="">‹ All routines</a>
+
+    @if (routine is null)
+    {
+        <p class="muted">@(loaded ? "Routine not found." : "Loading…")</p>
+    }
+    else
+    {
+        <h1>@routine.Name</h1>
+        <div class="muted">@DoneText</div>
+
+        <Heatmap Grid="grid" Today="today" Done="done" />
+
+        <div class="list routine-items">
+            @foreach (var item in items)
+            {
+                <div class="list-item">
+                    <span>@item.Name</span>
+                    @if (item.Target is { } target)
+                    {
+                        <span class="muted target">@target</span>
+                    }
+                </div>
+            }
+        </div>
+        @if (items.Count == 0)
+        {
+            <p class="muted">This routine has no workouts yet.</p>
+        }
+
+        <div class="spacer"></div>
+        @if (inProgress is { } p && p.RoutineId == Id)
+        {
+            <a class="btn primary big link-btn" href="routine/@Id/run">Continue routine</a>
+        }
+        else if (blockedBy is { } blocked)
+        {
+            <p class="blocked">Finish or abandon <a href="@blocked.Href">@blocked.Name</a> first.</p>
+        }
+        else
+        {
+            <button class="btn primary big" @onclick="StartAsync" disabled="@(items.Count == 0)">Start routine</button>
+        }
+    }
+</main>
+
+@code {
+    const int Weeks = 16;
+
+    [Parameter] public int Id { get; set; }
+
+    Routine? routine;
+    bool loaded;
+    int total;
+    DateOnly today;
+    HeatmapGrid grid = null!;
+    HashSet<DateOnly> done = [];
+    List<RoutineItemView> items = [];
+    RoutineState? inProgress;
+    (string Name, string Href)? blockedBy;
+
+    string DoneText => total switch
+    {
+        0 => "Not done yet",
+        1 => "Done once",
+        _ => $"Done {total} times"
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        using var activity = Telemetry.ActivitySource.StartActivity("Load RoutinePage");
+        activity?.SetTag("workouttracker.routine_id", Id);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        routine = await db.Routines.FindAsync(Id);
+        loaded = true;
+        if (routine is null) return;
+
+        today = Clock.Today;
+        grid = new HeatmapGrid(today, Weeks);
+
+        total = await db.RoutineRuns.CountAsync(r => r.RoutineId == Id);
+        var times = await db.RoutineRuns.StartTimesSince(Id, Clock.StartOfDayUtc(grid.Start)).ToListAsync();
+        done = times.Select(Clock.ToLocalDate).ToHashSet();
+        items = await RoutineItemView.LoadAsync(db, Id);
+
+        inProgress = await Routines.LoadAsync();
+        blockedBy = await BlockedByAsync(db);
+    }
+
+    async Task<(string, string)?> BlockedByAsync(AppDbContext db)
+    {
+        if (inProgress is { } other)
+            return await db.Routines.FindAsync(other.RoutineId) is { } r ? (r.Name, $"routine/{r.Id}/run") : null;
+        if (await Workouts.LoadAsync() is { RoutineItemId: null } workout)
+            return await db.WorkoutTypes.FindAsync(workout.TypeId) is { } t ? (t.Name, $"workout/{t.Id}") : null;
+        return null;
+    }
+
+    async Task StartAsync()
+    {
+        await Routines.SaveAsync(RoutineState.Start(Id, Time.GetUtcNow().UtcDateTime));
+        Nav.NavigateTo($"routine/{Id}/run");
+    }
+}

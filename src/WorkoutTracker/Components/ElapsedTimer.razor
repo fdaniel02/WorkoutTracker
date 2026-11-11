@@ -1,0 +1,44 @@
+@implements IDisposable
+@inject TimeProvider Time
+
+<div class="timer @(State.Running ? "" : "paused") @Class">@Text</div>
+
+@code {
+    [Parameter, EditorRequired] public TimedState State { get; set; } = null!;
+    [Parameter] public string? Class { get; set; }
+
+    PeriodicTimer? ticker;
+    string shown = "";
+
+    string Text
+    {
+        get
+        {
+            var t = State.Elapsed(Time.GetUtcNow().UtcDateTime);
+            return $"{(int)t.TotalMinutes:00}:{t.Seconds:00}";
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        ticker = new PeriodicTimer(TimeSpan.FromMilliseconds(250));
+        _ = TickAsync(ticker);
+    }
+
+    // Only this component redraws on each tick, not the page around it.
+    async Task TickAsync(PeriodicTimer timer)
+    {
+        while (await timer.WaitForNextTickAsync())
+        {
+            await InvokeAsync(() =>
+            {
+                var text = Text;
+                if (text == shown) return;
+                shown = text;
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose() => ticker?.Dispose();
+}

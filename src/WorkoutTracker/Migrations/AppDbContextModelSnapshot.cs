@@ -17,7 +17,7 @@ namespace WorkoutTracker.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.13")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -39,6 +39,90 @@ namespace WorkoutTracker.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("DataProtectionKeys");
+                });
+
+            modelBuilder.Entity("WorkoutTracker.Data.Routine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Routines");
+                });
+
+            modelBuilder.Entity("WorkoutTracker.Data.RoutineItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Position")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProposedReps")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("ProposedSets")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RoutineId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("WorkoutTypeId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RoutineId");
+
+                    b.HasIndex("WorkoutTypeId");
+
+                    b.ToTable("RoutineItems");
+                });
+
+            modelBuilder.Entity("WorkoutTracker.Data.RoutineRun", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<Guid>("ClientId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("FinishedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("RoutineId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId")
+                        .IsUnique();
+
+                    b.HasIndex("RoutineId", "StartedAtUtc");
+
+                    b.ToTable("RoutineRuns");
                 });
 
             modelBuilder.Entity("WorkoutTracker.Data.Workout", b =>
@@ -92,6 +176,36 @@ namespace WorkoutTracker.Migrations
                     b.ToTable("WorkoutTypes");
                 });
 
+            modelBuilder.Entity("WorkoutTracker.Data.RoutineItem", b =>
+                {
+                    b.HasOne("WorkoutTracker.Data.Routine", "Routine")
+                        .WithMany("Items")
+                        .HasForeignKey("RoutineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WorkoutTracker.Data.WorkoutType", "WorkoutType")
+                        .WithMany()
+                        .HasForeignKey("WorkoutTypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Routine");
+
+                    b.Navigation("WorkoutType");
+                });
+
+            modelBuilder.Entity("WorkoutTracker.Data.RoutineRun", b =>
+                {
+                    b.HasOne("WorkoutTracker.Data.Routine", "Routine")
+                        .WithMany("Runs")
+                        .HasForeignKey("RoutineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Routine");
+                });
+
             modelBuilder.Entity("WorkoutTracker.Data.Workout", b =>
                 {
                     b.HasOne("WorkoutTracker.Data.WorkoutType", "WorkoutType")
@@ -101,6 +215,13 @@ namespace WorkoutTracker.Migrations
                         .IsRequired();
 
                     b.Navigation("WorkoutType");
+                });
+
+            modelBuilder.Entity("WorkoutTracker.Data.Routine", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("Runs");
                 });
 
             modelBuilder.Entity("WorkoutTracker.Data.WorkoutType", b =>

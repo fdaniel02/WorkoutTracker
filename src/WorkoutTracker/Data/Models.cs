@@ -18,3 +18,35 @@ public class Workout
     public DateTime StartedAtUtc { get; set; }
     public DateTime FinishedAtUtc { get; set; }
 }
+
+public class Routine
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+    public List<RoutineItem> Items { get; set; } = [];
+    public List<RoutineRun> Runs { get; set; } = [];
+}
+
+public class RoutineItem
+{
+    public int Id { get; set; }
+    public int RoutineId { get; set; }
+    public Routine? Routine { get; set; }
+    public int WorkoutTypeId { get; set; }
+    public WorkoutType? WorkoutType { get; set; }
+    public int Position { get; set; }
+    public int? ProposedSets { get; set; }
+    // Text, because targets are often ranges, per side or timed: "8-12 per side", "30 s".
+    public string? ProposedReps { get; set; }
+}
+
+public class RoutineRun
+{
+    public int Id { get; set; }
+    // Same purpose as Workout.ClientId.
+    public Guid ClientId { get; set; }
+    public int RoutineId { get; set; }
+    public Routine? Routine { get; set; }
+    public DateTime StartedAtUtc { get; set; }
+    public DateTime FinishedAtUtc { get; set; }
+}

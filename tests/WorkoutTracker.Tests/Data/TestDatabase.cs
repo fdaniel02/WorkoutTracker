@@ -48,5 +48,34 @@ public sealed class TestDatabase : IDbContextFactory<AppDbContext>, IDisposable
         return await db.Workouts.CountAsync();
     }
 
+    public async Task<Routine> AddRoutineAsync(string name, params (int TypeId, int? Sets, string? Reps)[] items)
+    {
+        await using var db = new AppDbContext(testOptions);
+        var routine = new Routine
+        {
+            Name = name,
+            Items = [.. items.Select((item, i) => new RoutineItem
+            {
+                WorkoutTypeId = item.TypeId, Position = i, ProposedSets = item.Sets, ProposedReps = item.Reps
+            })]
+        };
+        db.Routines.Add(routine);
+        await db.SaveChangesAsync();
+        return routine;
+    }
+
+    public async Task AddRoutineRunAsync(int routineId, DateTime startedAtUtc)
+    {
+        await using var db = new AppDbContext(testOptions);
+        db.RoutineRuns.Add(new RoutineRun { ClientId = Guid.NewGuid(), RoutineId = routineId, StartedAtUtc = startedAtUtc, FinishedAtUtc = startedAtUtc.AddMinutes(30) });
+        await db.SaveChangesAsync();
+    }
+
+    public async Task<List<RoutineRun>> RoutineRunsAsync()
+    {
+        await using var db = new AppDbContext(testOptions);
+        return await db.RoutineRuns.ToListAsync();
+    }
+
     public void Dispose() => connection.Dispose();
 }

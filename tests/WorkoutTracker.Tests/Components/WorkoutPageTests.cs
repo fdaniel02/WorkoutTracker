@@ -308,9 +308,6 @@ public class WorkoutPageTests : PageTestContext
     static string? CurrentRep(IRenderedComponent<WorkoutPage> page) =>
         page.FindAll(".rep-circles .rep-circle.current").SingleOrDefault()?.TextContent;
 
-    void SetUpSavedWorkout(WorkoutState state) =>
-        JSInterop.Setup<string?>("workoutState.load").SetResult(JsonSerializer.Serialize(state));
-
     async Task<(IRenderedComponent<WorkoutPage> Page, int TypeId)> OpenWithAnotherTypeSavedAsync()
     {
         var other = await Database.AddWorkoutTypeAsync("Squats");
@@ -333,5 +330,113 @@ public class WorkoutPageTests : PageTestContext
         page.WaitForAssertion(() => Assert.True(Button(page, "Finish").HasAttribute("disabled")));
         saveGate.Release();
         await tap;
+    }
+
+    async Task<(int RoutineId, int TypeId, int ItemId)> StartRoutineAsync(int? sets = 3, string? reps = "8-12 per side")
+    {
+        var type = await Database.AddWorkoutTypeAsync("Calf raise");
+        var routine = await Database.AddRoutineAsync("Legs and feet", (type.Id, sets, reps));
+        SetUpSavedRoutine(RoutineState.Start(routine.Id, UtcNow));
+        return (routine.Id, type.Id, routine.Items[0].Id);
+    }
+
+    IRenderedComponent<WorkoutPage> OpenFromRoutine(int typeId, int? itemId)
+    {
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"workout/{typeId}" + (itemId is null ? "" : $"?item={itemId}"));
+        var page = Render<WorkoutPage>(p => p.Add(x => x.Id, typeId));
+        page.WaitForElement("button.wide");
+        return page;
+    }
+
+    [Fact]
+    public async Task Opened_from_the_routine_shows_the_target_and_sets_done_of_proposed()
+    {
+        var (_, typeId, itemId) = await StartRoutineAsync();
+        var page = OpenFromRoutine(typeId, itemId);
+        Assert.Equal("3 × 8-12 per side", page.Find(".workout-target").TextContent);
+        Assert.Equal("Sets 0 / 3", page.Find(".reps-label").TextContent);
+
+        await Button(page, "Start").ClickAsync();
+        await Button(page, "+1").ClickAsync();
+
+        Assert.Equal("Sets 1 / 3", page.Find(".reps-label").TextContent);
+        Assert.Equal(itemId, LastSaved<WorkoutState>("workoutState").RoutineItemId);
+    }
+
+    [Fact]
+    public async Task Without_proposed_sets_the_counter_keeps_its_usual_label()
+    {
+        var (_, typeId, itemId) = await StartRoutineAsync(sets: null, reps: "30 s");
+
+        var page = OpenFromRoutine(typeId, itemId);
+
+        Assert.Equal("30 s", page.Find(".workout-target").TextContent);
+        Assert.Equal("Repetitions", page.Find(".reps-label").TextContent);
+    }
+
+    [Fact]
+    public async Task Finish_in_a_routine_ticks_the_workout_and_returns_to_the_routine()
+    {
+        var (routineId, typeId, itemId) = await StartRoutineAsync();
+        var page = OpenFromRoutine(typeId, itemId);
+        await Button(page, "Start").ClickAsync();
+        saveGate.Release();
+
+        await Button(page, "Finish").ClickAsync();
+
+        Assert.Equal(1, await Database.CountWorkoutsAsync());
+        Assert.Equal([itemId], LastSaved<RoutineState>("routineState").DoneItemIds);
+        JSInterop.VerifyInvoke("workoutState.clear");
+        Assert.EndsWith($"routine/{routineId}/run", Uri);
+    }
+
+    [Fact]
+    public async Task Abandon_in_a_routine_returns_to_the_routine_without_a_tick()
+    {
+        var (routineId, typeId, itemId) = await StartRoutineAsync();
+        var page = OpenFromRoutine(typeId, itemId);
+        await Button(page, "Start").ClickAsync();
+
+        await page.Find("button.danger").ClickAsync();
+        await page.Find("button.danger").ClickAsync();
+
+        JSInterop.VerifyNotInvoke("routineState.save");
+        Assert.EndsWith($"routine/{routineId}/run", Uri);
+    }
+
+    [Fact]
+    public async Task Workout_continued_without_the_item_in_the_link_stays_in_the_routine()
+    {
+        var (_, typeId, itemId) = await StartRoutineAsync();
+        SetUpSavedWorkout(new WorkoutState { TypeId = typeId, RoutineItemId = itemId, StartedUtc = UtcNow, Reps = 2, Started = true });
+
+        var page = OpenFromRoutine(typeId, null);
+
+        Assert.Equal("Sets 2 / 3", page.Find(".reps-label").TextContent);
+        Assert.Equal(["1", "2"], RepCircles(page));
+        Assert.EndsWith($"workout/{typeId}", Uri);
+    }
+
+    [Fact]
+    public async Task Another_workout_cannot_be_started_while_a_routine_is_in_progress()
+    {
+        var (routineId, _, _) = await StartRoutineAsync();
+        var other = await Database.AddWorkoutTypeAsync("Push-ups");
+
+        Render<WorkoutPage>(p => p.Add(x => x.Id, other.Id));
+
+        Assert.EndsWith($"routine/{routineId}/run", Uri);
+    }
+
+    [Fact]
+    public async Task Item_of_another_routine_counts_as_another_workout()
+    {
+        var (routineId, typeId, _) = await StartRoutineAsync();
+        var other = await Database.AddRoutineAsync("Other", (typeId, 5, null));
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"workout/{typeId}?item={other.Items[0].Id}");
+        Render<WorkoutPage>(p => p.Add(x => x.Id, typeId));
+
+        Assert.EndsWith($"routine/{routineId}/run", Uri);
     }
 }

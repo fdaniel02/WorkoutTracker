@@ -1,5 +1,6 @@
 using Bunit;
 using Microsoft.EntityFrameworkCore;
+using WorkoutTracker.Components;
 using WorkoutTracker.Components.Pages;
 
 namespace WorkoutTracker.Tests.Components;
@@ -137,5 +138,76 @@ public class HomeTests : PageTestContext
         var type = await Database.AddWorkoutTypeAsync(name);
         await Database.AddWorkoutAsync(type.Id, lastUtc.AddDays(-5));
         await Database.AddWorkoutAsync(type.Id, lastUtc);
+    }
+
+    [Fact]
+    public async Task Routines_tab_lists_routines_with_when_they_were_last_done_and_is_remembered()
+    {
+        var type = await Database.AddWorkoutTypeAsync("Push ups");
+        var upper = await Database.AddRoutineAsync("Upper body", (type.Id, 3, null));
+        await Database.AddRoutineRunAsync(upper.Id, new DateTime(2026, 10, 14, 8, 0, 0, DateTimeKind.Utc));
+        await Database.AddRoutineAsync("Legs", (type.Id, 3, null));
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        await Button(page, "Routines").ClickAsync();
+
+        Assert.Equal("Routines", page.Find("h1").TextContent);
+        Assert.Equal(["Legs", "Upper body"], TypeNames(page));
+        Assert.Equal([null, "1 day ago"], page.FindAll(".list .list-item").Select(i => i.QuerySelector(".ago")?.TextContent));
+        Assert.Equal($"routine/{upper.Id}", page.FindAll(".list .list-item")[1].GetAttribute("href"));
+        Assert.Empty(page.FindAll(".page-header .add"));
+        Assert.Equal("Routines", JSInterop.VerifyInvoke("homeView.save").Arguments[0]);
+    }
+
+    [Fact]
+    public async Task Saved_view_is_used_when_the_page_opens_and_sorting_applies_to_it()
+    {
+        var type = await Database.AddWorkoutTypeAsync("Push ups");
+        var upper = await Database.AddRoutineAsync("Upper body", (type.Id, 3, null));
+        await Database.AddRoutineRunAsync(upper.Id, new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc));
+        var legs = await Database.AddRoutineAsync("Legs", (type.Id, 3, null));
+        await Database.AddRoutineRunAsync(legs.Id, new DateTime(2026, 10, 14, 8, 0, 0, DateTimeKind.Utc));
+        JSInterop.Setup<string?>("homeView.load").SetResult("Routines");
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+        Assert.Equal(["Legs", "Upper body"], TypeNames(page));
+
+        await page.Find(".sort").ClickAsync();
+
+        Assert.Equal(["Upper body", "Legs"], TypeNames(page));
+    }
+
+    [Fact]
+    public void No_routines_says_so()
+    {
+        JSInterop.Setup<string?>("homeView.load").SetResult("Routines");
+
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        Assert.Equal("No routines yet.", page.Find("main > p.muted").TextContent);
+    }
+
+    [Fact]
+    public async Task Routine_in_progress_is_continued_from_both_tabs_instead_of_its_open_workout()
+    {
+        var type = await Database.AddWorkoutTypeAsync("Push ups");
+        var routine = await Database.AddRoutineAsync("Upper body", (type.Id, 3, null));
+        var state = RoutineState.Start(routine.Id, UtcNow);
+        state.DoneItemIds.Add(routine.Items[0].Id);
+        SetUpSavedRoutine(state);
+        SetUpSavedWorkout(new WorkoutState { TypeId = type.Id, RoutineItemId = routine.Items[0].Id, Started = true });
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        var continueLink = page.Find(".continue");
+        Assert.Equal("Continue Upper body", continueLink.QuerySelector("span")!.TextContent);
+        Assert.Equal("1 done", continueLink.QuerySelector(".ago")!.TextContent);
+        Assert.Equal($"routine/{routine.Id}/run", continueLink.GetAttribute("href"));
+
+        await Button(page, "Routines").ClickAsync();
+
+        Assert.Single(page.FindAll(".continue"));
     }
 }

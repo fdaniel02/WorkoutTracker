@@ -38,6 +38,7 @@ builder.Services.AddAppTelemetry(builder.Configuration);
 builder.Services.AddSingleton<WorkoutMetrics>();
 
 builder.Services.AddScoped<WorkoutStateStore>();
+builder.Services.AddScoped<RoutineStateStore>();
 builder.Services.AddSingleton<DatabaseMigrator>();
 builder.Services.AddSingleton(TimeProvider.System);
 // Resolved after Build(), so a bad setting is logged like any other startup error.
