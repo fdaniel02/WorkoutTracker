@@ -103,7 +103,7 @@ public sealed class WorkoutTypeCommandsTests(SqlServerFixture sqlServer) : IAsyn
         await db.SetFavoriteAsync(id, true, TestContext.Current.CancellationToken);
 
         var span = Assert.Single(spans.Stopped);
-        Assert.Equal(true, span.GetTagItem("workouttracker.favorite"));
+        Assert.True(span.GetTagItem("workouttracker.favorite") is true);
     }
 
     async Task<List<string>> FavoritesAsync()
