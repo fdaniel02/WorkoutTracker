@@ -2,6 +2,7 @@
 @rendermode RenderModes.InteractiveServerNoPrerender
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject Clock Clock
+@inject RoutineStateStore Routines
 
 <PageTitle>@type?.Name</PageTitle>
 
@@ -17,22 +18,17 @@
         <h1>@type.Name</h1>
         <div class="muted">@total workout@(total == 1 ? "" : "s") total</div>
 
-        <div class="heatmap-wrap">
-            <div class="heatmap">
-                @foreach (var week in grid.Weeks)
-                {
-                    <div class="month">@week.MonthLabel</div>
-                    @foreach (var d in week.Days)
-                    {
-                        <div class="@CellClass(d)"
-                             title="@d.ToString("ddd d MMM yyyy")"></div>
-                    }
-                }
-            </div>
-        </div>
+        <Heatmap Grid="grid" Today="today" Done="done" />
 
         <div class="spacer"></div>
-        <a class="btn primary big" href="workout/@Id" style="text-align:center;text-decoration:none;display:block">Start workout</a>
+        @if (routineInProgress is { } routine)
+        {
+            <p class="blocked">Finish or abandon <a href="routine/@routine.Id/run">@routine.Name</a> first.</p>
+        }
+        else
+        {
+            <a class="btn primary big" href="workout/@Id" style="text-align:center;text-decoration:none;display:block">Start workout</a>
+        }
     }
 </main>
 
@@ -47,6 +43,7 @@
     DateOnly today;
     HeatmapGrid grid = null!;
     HashSet<DateOnly> done = [];
+    Routine? routineInProgress;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -63,17 +60,8 @@
         total = await db.Workouts.CountAsync(w => w.WorkoutTypeId == Id);
         var times = await db.Workouts.StartTimesSince(Id, Clock.StartOfDayUtc(grid.Start)).ToListAsync();
         done = times.Select(Clock.ToLocalDate).ToHashSet();
-    }
 
-    string CellClass(DateOnly day)
-    {
-        var cssClass = "cell";
-        if (day > today)
-            cssClass += " future";
-        else if (done.Contains(day))
-            cssClass += " done";
-        if (day == today)
-            cssClass += " today";
-        return cssClass;
+        if (await Routines.LoadAsync() is { } routine)
+            routineInProgress = await db.Routines.FindAsync(routine.RoutineId);
     }
 }

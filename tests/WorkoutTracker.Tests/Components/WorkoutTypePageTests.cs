@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using Microsoft.AspNetCore.Components.Web;
+using WorkoutTracker.Components;
 using WorkoutTracker.Components.Pages;
 using WorkoutTracker.Tests.Data;
 
@@ -102,6 +103,20 @@ public class WorkoutTypePageTests : PageTestContext
         Assert.Equal(3, page.FindAll(".cell.future").Count);
         Assert.True(Cell(page, new DateOnly(2026, 10, 16)).ClassList.Contains("future"));
         Assert.Equal("1 workout total", page.Find("div.muted").TextContent);
+    }
+
+    [Fact]
+    public async Task Routine_in_progress_replaces_start_with_a_link_to_it()
+    {
+        var type = await Database.AddWorkoutTypeAsync("Push-ups");
+        var routine = await Database.AddRoutineAsync("Upper body", (type.Id, 3, null));
+        SetUpSavedRoutine(RoutineState.Start(routine.Id, UtcNow));
+
+        var page = RenderPage(type.Id);
+
+        Assert.Equal("Finish or abandon Upper body first.", page.Find(".blocked").TextContent);
+        Assert.Equal($"routine/{routine.Id}/run", page.Find(".blocked a").GetAttribute("href"));
+        Assert.Empty(page.FindAll("a.btn"));
     }
 
     [Fact]

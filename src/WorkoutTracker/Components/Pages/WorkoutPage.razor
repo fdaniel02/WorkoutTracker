@@ -5,6 +5,7 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject WorkoutStateStore Store
+@inject RoutineStateStore Routines
 @inject WorkoutMetrics Metrics
 @inject TimeProvider Time
 
@@ -18,11 +19,15 @@
     else
     {
         <h1 class="workout-title">@type.Name</h1>
+        @if (item is { } i && RoutineTarget.Format(i.ProposedSets, i.ProposedReps) is { } target)
+        {
+            <div class="muted workout-target">@target</div>
+        }
 
-        <div class="timer @(state.Running ? "" : "paused")">@Elapsed</div>
+        <ElapsedTimer State="state" />
 
         <div class="reps">
-            <div class="muted">Repetitions</div>
+            <div class="muted reps-label">@RepsHeading</div>
             <div class="rep-circles" role="img" aria-label="@RepsLabel">
                 @for (var rep = 1; rep <= state.Reps; rep++)
                 {
@@ -69,26 +74,21 @@
 
 @code {
     [Parameter] public int Id { get; set; }
+    // The routine item this workout is started from, on the routine in progress.
+    [SupplyParameterFromQuery] public int? Item { get; set; }
 
     WorkoutState state = new();
     // True once the saved state belongs to this page, so Finish/Abandon don't clear another type's workout.
     bool saved;
     bool confirmAbandon;
     bool saving;
-    PeriodicTimer? ticker;
-    string shown = "";
     WorkoutType? type;
+    RoutineState? routine;
+    RoutineItem? item;
 
     DateTime UtcNow => Time.GetUtcNow().UtcDateTime;
 
-    string Elapsed
-    {
-        get
-        {
-            var t = state.Elapsed(UtcNow);
-            return $"{(int)t.TotalMinutes:00}:{t.Seconds:00}";
-        }
-    }
+    string RepsHeading => item?.ProposedSets is { } sets ? $"Sets {state.Reps} / {sets}" : "Repetitions";
 
     string ToggleLabel => state switch
     {
@@ -111,7 +111,9 @@
             return;
         }
 
-        if (await Store.LoadAsync() is { } restored && restored.TypeId == Id)
+        routine = await Routines.LoadAsync();
+        var restored = await Store.LoadAsync();
+        if (restored?.TypeId == Id && (Item is null || restored.RoutineItemId == Item))
         {
             state = restored;
             saved = true;
@@ -119,30 +121,24 @@
         else
         {
             // A workout of another type stays saved until this one is started.
-            state = new WorkoutState { TypeId = Id, StartedUtc = UtcNow };
+            state = new WorkoutState { TypeId = Id, StartedUtc = UtcNow, RoutineItemId = Item };
         }
 
-        ticker = new PeriodicTimer(TimeSpan.FromMilliseconds(250));
-        _ = TickAsync(ticker);
+        if (state.RoutineItemId is { } itemId && routine is not null)
+            item = await db.RoutineItems.SingleOrDefaultAsync(i =>
+                i.Id == itemId && i.RoutineId == routine.RoutineId && i.WorkoutTypeId == Id);
+        if (item is null)
+        {
+            state.RoutineItemId = null;
+            // Only workouts of the routine in progress can be started until it's finished or abandoned.
+            if (routine is not null && !saved)
+                Nav.NavigateTo($"routine/{routine.RoutineId}/run");
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender) await JS.InvokeVoidAsync("wakeLock.on");
-    }
-
-    async Task TickAsync(PeriodicTimer timer)
-    {
-        while (await timer.WaitForNextTickAsync())
-        {
-            await InvokeAsync(() =>
-            {
-                var text = Elapsed;
-                if (text == shown) return;
-                shown = text;
-                StateHasChanged();
-            });
-        }
     }
 
     async Task SaveAsync()
@@ -189,7 +185,12 @@
         }
         Metrics.WorkoutSaved(typeName);
         if (saved) await Store.ClearAsync();
-        Nav.NavigateTo($"type/{Id}");
+        if (item is not null && routine is not null)
+        {
+            routine.DoneItemIds.Add(item.Id);
+            await Routines.SaveAsync(routine);
+        }
+        Nav.NavigateTo(Exit ?? $"type/{Id}");
     }
 
     async Task AbandonAsync()
@@ -200,14 +201,15 @@
             return;
         }
         if (saved) await Store.ClearAsync();
-        Nav.NavigateTo("");
+        Nav.NavigateTo(Exit ?? "");
     }
+
+    string? Exit => item is null ? null : $"routine/{item.RoutineId}/run";
 
     void CancelAbandon() => confirmAbandon = false;
 
     public async ValueTask DisposeAsync()
     {
-        ticker?.Dispose();
         try
         {
             await JS.InvokeVoidAsync("wakeLock.off");

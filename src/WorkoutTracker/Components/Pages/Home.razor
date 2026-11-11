@@ -3,18 +3,22 @@
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject Clock Clock
 @inject WorkoutStateStore Store
+@inject RoutineStateStore Routines
 @inject IJSRuntime JS
 
-<PageTitle>Workouts</PageTitle>
+<PageTitle>@ViewName</PageTitle>
 
 <main class="page">
     <div class="page-header">
-        <h1>Workouts</h1>
-        <button class="icon-btn add" aria-label="Add workout type" title="Add workout type" @onclick="Open">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
-                <path d="M12 5v14M5 12h14" />
-            </svg>
-        </button>
+        <h1>@ViewName</h1>
+        @if (view == HomeView.Workouts)
+        {
+            <button class="icon-btn add" aria-label="Add workout type" title="Add workout type" @onclick="Open">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14" />
+                </svg>
+            </button>
+        }
         <button class="icon-btn sort" aria-label="@OrderLabel" title="@OrderLabel" @onclick="ToggleOrderAsync">
             @if (order == TypeOrder.Name)
             {
@@ -32,13 +36,27 @@
         </button>
     </div>
 
-    @if (types is null)
+    <div class="tabs" role="tablist">
+        <button role="tab" class="tab @(view == HomeView.Workouts ? "active" : "")" aria-selected="@(view == HomeView.Workouts ? "true" : "false")"
+                @onclick="() => ShowAsync(HomeView.Workouts)">Workouts</button>
+        <button role="tab" class="tab @(view == HomeView.Routines ? "active" : "")" aria-selected="@(view == HomeView.Routines ? "true" : "false")"
+                @onclick="() => ShowAsync(HomeView.Routines)">Routines</button>
+    </div>
+
+    @if (types is null || routines is null)
     {
         <p class="muted">Loading…</p>
     }
     else
     {
-        @if (inProgress is { } p && types.FirstOrDefault(t => t.Type.Id == p.TypeId).Type is { } current)
+        @if (routineInProgress is { } r && routines.FirstOrDefault(x => x.Id == r.RoutineId) is { } currentRoutine)
+        {
+            <a class="list-item continue" href="routine/@currentRoutine.Id/run">
+                <span>Continue @currentRoutine.Name</span>
+                <span class="muted ago">@r.DoneItemIds.Count done</span>
+            </a>
+        }
+        else if (inProgress is { } p && types.FirstOrDefault(t => t.Id == p.TypeId) is { } current)
         {
             <a class="list-item continue" href="workout/@current.Id">
                 <span>Continue @current.Name</span>
@@ -46,20 +64,20 @@
             </a>
         }
         <div class="list">
-            @foreach (var t in types)
+            @foreach (var e in Shown)
             {
-                <a class="list-item" href="type/@t.Type.Id">
-                    <span>@t.Type.Name</span>
-                    @if (t.LastUtc is { } last)
+                <a class="list-item" href="@(view == HomeView.Workouts ? "type" : "routine")/@e.Id">
+                    <span>@e.Name</span>
+                    @if (e.LastUtc is { } last)
                     {
                         <span class="muted ago">@Ago(last)</span>
                     }
                 </a>
             }
         </div>
-        @if (types.Count == 0)
+        @if (Shown.Count == 0)
         {
-            <p class="muted">No workout types yet. Tap + to add your first one.</p>
+            <p class="muted">@(view == HomeView.Workouts ? "No workout types yet. Tap + to add your first one." : "No routines yet.")</p>
         }
     }
 
@@ -84,7 +102,16 @@
 }
 
 @code {
-    List<(WorkoutType Type, DateTime? LastUtc)>? types;
+    enum HomeView { Workouts, Routines }
+
+    List<ListEntry>? types;
+    List<ListEntry>? routines;
+    HomeView view;
+    RoutineState? routineInProgress;
+
+    string ViewName => view == HomeView.Workouts ? "Workouts" : "Routines";
+
+    List<ListEntry> Shown => (view == HomeView.Workouts ? types : routines)!;
     string newName = "";
     string? error;
     bool showDialog;
@@ -103,24 +130,38 @@
     {
         using var activity = Telemetry.ActivitySource.StartActivity("Load Home");
         inProgress = await Store.LoadAsync();
+        routineInProgress = await Routines.LoadAsync();
         order = TypeOrdering.Parse(await JS.InvokeAsync<string?>("typeOrder.load"));
+        view = Enum.TryParse<HomeView>(await JS.InvokeAsync<string?>("homeView.load"), out var saved) && Enum.IsDefined(saved)
+            ? saved : HomeView.Workouts;
         await LoadAsync();
     }
 
     async Task LoadAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        var rows = await db.WorkoutTypes
-            .Select(t => new { Type = t, Last = t.Workouts.Max(w => (DateTime?)w.StartedAtUtc) })
+        var typeRows = await db.WorkoutTypes
+            .Select(t => new ListEntry(t.Id, t.Name, t.Workouts.Max(w => (DateTime?)w.StartedAtUtc)))
             .ToListAsync();
-        types = TypeOrdering.Sort(rows.Select(r => (r.Type, r.Last)), order);
+        var routineRows = await db.Routines
+            .Select(r => new ListEntry(r.Id, r.Name, r.Runs.Max(x => (DateTime?)x.StartedAtUtc)))
+            .ToListAsync();
+        types = TypeOrdering.Sort(typeRows, order);
+        routines = TypeOrdering.Sort(routineRows, order);
     }
 
     async Task ToggleOrderAsync()
     {
         order = order == TypeOrder.Name ? TypeOrder.LastDone : TypeOrder.Name;
         if (types is not null) types = TypeOrdering.Sort(types, order);
+        if (routines is not null) routines = TypeOrdering.Sort(routines, order);
         await JS.InvokeVoidAsync("typeOrder.save", order.ToString());
+    }
+
+    async Task ShowAsync(HomeView shown)
+    {
+        view = shown;
+        await JS.InvokeVoidAsync("homeView.save", shown.ToString());
     }
 
     string Ago(DateTime utc)

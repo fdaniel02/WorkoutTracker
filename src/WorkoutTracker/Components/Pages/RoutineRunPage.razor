@@ -1,0 +1,148 @@
+@page "/routine/{Id:int}/run"
+@rendermode RenderModes.InteractiveServerNoPrerender
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager Nav
+@inject RoutineStateStore Routines
+@inject WorkoutStateStore Workouts
+@inject WorkoutMetrics Metrics
+@inject TimeProvider Time
+
+<PageTitle>@routine?.Name</PageTitle>
+
+<main class="page">
+    @if (routine is null || state is null)
+    {
+        <p class="muted">Loading…</p>
+    }
+    else
+    {
+        <h1 class="workout-title">@routine.Name</h1>
+        <ElapsedTimer State="state" Class="small" />
+        <div class="muted progress">@DoneCount / @items.Count done</div>
+
+        <div class="list routine-items">
+            @foreach (var item in items)
+            {
+                <a class="@ItemClass(item)" href="@ItemHref(item)">
+                    <span class="check" aria-hidden="true">@(IsDone(item) ? "✓" : "")</span>
+                    <span class="name">@item.Name</span>
+                    @if (item.Id == workoutItemId)
+                    {
+                        <span class="muted target">In progress</span>
+                    }
+                    else if (item.Target is { } target)
+                    {
+                        <span class="muted target">@target</span>
+                    }
+                </a>
+            }
+        </div>
+
+        <div class="spacer"></div>
+
+        <button class="btn warn" @onclick="ToggleTimerAsync">@(state.Running ? "Pause" : "Resume")</button>
+        @if (confirmAbandon)
+        {
+            @* Only while confirming: a click handler on <main> would make every tap on the page its own trace. *@
+            <div class="dismiss-layer" @onclick="CancelAbandon"></div>
+        }
+        <div class="row">
+            <button class="btn primary wide" @onclick="FinishAsync" disabled="@saving">Finish routine</button>
+            <button class="btn danger @(confirmAbandon ? "confirm" : "")" @onclick="AbandonAsync">
+                @(confirmAbandon ? "Are you sure?" : "Abandon")
+            </button>
+        </div>
+    }
+</main>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    Routine? routine;
+    RoutineState? state;
+    List<RoutineItemView> items = [];
+    int? workoutItemId;
+    bool confirmAbandon;
+    bool saving;
+
+    DateTime UtcNow => Time.GetUtcNow().UtcDateTime;
+
+    int DoneCount => items.Count(IsDone);
+
+    int? NextItemId => items.FirstOrDefault(i => !IsDone(i))?.Id;
+
+    bool IsDone(RoutineItemView item) => state!.DoneItemIds.Contains(item.Id);
+
+    string ItemClass(RoutineItemView item) =>
+        "list-item routine-item" + (IsDone(item) ? " done" : "") + (item.Id == NextItemId ? " next" : "");
+
+    string ItemHref(RoutineItemView item) => $"workout/{item.WorkoutTypeId}?item={item.Id}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var activity = Telemetry.ActivitySource.StartActivity("Load RoutineRunPage");
+        activity?.SetTag("workouttracker.routine_id", Id);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var loadedState = await Routines.LoadAsync();
+        var loadedRoutine = await db.Routines.FindAsync(Id);
+        if (loadedRoutine is null || loadedState?.RoutineId != Id)
+        {
+            Nav.NavigateTo(loadedRoutine is null ? "" : $"routine/{Id}");
+            return;
+        }
+
+        items = await RoutineItemView.LoadAsync(db, Id);
+        workoutItemId = (await Workouts.LoadAsync())?.RoutineItemId;
+        routine = loadedRoutine;
+        state = loadedState;
+    }
+
+    async Task ToggleTimerAsync()
+    {
+        state!.ToggleTimer(UtcNow);
+        await Routines.SaveAsync(state);
+    }
+
+    // `saving` stays set after a successful save, so a tap before the navigation completes is ignored too.
+    async Task FinishAsync()
+    {
+        if (saving) return;
+        saving = true;
+        state!.Stop(UtcNow);
+        var name = routine!.Name;
+        await using (var db = await DbFactory.CreateDbContextAsync())
+        {
+            var run = new RoutineRun
+            {
+                ClientId = state.Id,
+                RoutineId = Id,
+                StartedAtUtc = state.StartedUtc,
+                FinishedAtUtc = UtcNow
+            };
+            await db.SaveRoutineRunAsync(run, name);
+        }
+        Metrics.RoutineSaved(name);
+        await ClearAsync();
+        Nav.NavigateTo($"routine/{Id}");
+    }
+
+    async Task AbandonAsync()
+    {
+        if (!confirmAbandon)
+        {
+            confirmAbandon = true;
+            return;
+        }
+        await ClearAsync();
+        Nav.NavigateTo("");
+    }
+
+    void CancelAbandon() => confirmAbandon = false;
+
+    // A workout started from this routine and left open ends with it; its sets aren't saved.
+    async Task ClearAsync()
+    {
+        await Routines.ClearAsync();
+        if (workoutItemId is not null) await Workouts.ClearAsync();
+    }
+}

@@ -1,5 +1,4 @@
 using WorkoutTracker.Components;
-using WorkoutTracker.Data;
 
 namespace WorkoutTracker.Tests;
 
@@ -8,9 +7,9 @@ public class TypeOrderingTests
     static readonly DateTime Oct1 = new(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc);
     static readonly DateTime Oct10 = new(2026, 10, 10, 8, 0, 0, DateTimeKind.Utc);
 
-    static (WorkoutType, DateTime?) Type(string name, DateTime? lastUtc) => (new WorkoutType { Name = name }, lastUtc);
+    static ListEntry Type(string name, DateTime? lastUtc) => new(0, name, lastUtc);
 
-    static string[] Names(List<(WorkoutType Type, DateTime? LastUtc)> sorted) => [.. sorted.Select(t => t.Type.Name)];
+    static string[] Names(List<ListEntry> sorted) => [.. sorted.Select(t => t.Name)];
 
     [Fact]
     public void By_name_ignores_case()

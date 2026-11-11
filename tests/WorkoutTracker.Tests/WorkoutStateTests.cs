@@ -137,7 +137,8 @@ public class WorkoutStateTests
             Started = true,
             Resting = true,
             AccumulatedBeforePause = TimeSpan.FromSeconds(12.5),
-            RunningSinceUtc = Now
+            RunningSinceUtc = Now,
+            RoutineItemId = 9
         };
 
         var restored = JsonSerializer.Deserialize<WorkoutState>(JsonSerializer.Serialize(state))!;
