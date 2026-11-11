@@ -26,10 +26,10 @@ public sealed class TestDatabase : IDbContextFactory<AppDbContext>, IDisposable
 
     public AppDbContext CreateDbContext() => new(appOptions);
 
-    public async Task<WorkoutType> AddWorkoutTypeAsync(string name)
+    public async Task<WorkoutType> AddWorkoutTypeAsync(string name, bool favorite = false)
     {
         await using var db = new AppDbContext(testOptions);
-        var type = new WorkoutType { Name = name };
+        var type = new WorkoutType { Name = name, IsFavorite = favorite };
         db.WorkoutTypes.Add(type);
         await db.SaveChangesAsync();
         return type;
@@ -40,6 +40,12 @@ public sealed class TestDatabase : IDbContextFactory<AppDbContext>, IDisposable
         await using var db = new AppDbContext(testOptions);
         db.Workouts.Add(new Workout { ClientId = Guid.NewGuid(), WorkoutTypeId = workoutTypeId, StartedAtUtc = startedAtUtc, FinishedAtUtc = startedAtUtc.AddMinutes(10) });
         await db.SaveChangesAsync();
+    }
+
+    public async Task<bool> IsFavoriteAsync(int workoutTypeId)
+    {
+        await using var db = new AppDbContext(testOptions);
+        return await db.WorkoutTypes.Where(t => t.Id == workoutTypeId).Select(t => t.IsFavorite).SingleAsync();
     }
 
     public async Task<int> CountWorkoutsAsync()

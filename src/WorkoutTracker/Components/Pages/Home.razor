@@ -18,6 +18,12 @@
                     <path d="M12 5v14M5 12h14" />
                 </svg>
             </button>
+            <button class="icon-btn filter @(filter == TypeFilter.HideRoutineOnly ? "active" : "")" aria-label="@FilterLabel" title="@FilterLabel"
+                    aria-pressed="@(filter == TypeFilter.HideRoutineOnly ? "true" : "false")" @onclick="ToggleFilterAsync">
+                <svg viewBox="0 0 24 24" fill="@(filter == TypeFilter.HideRoutineOnly ? "currentColor" : "none")" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 5h18l-7 8.5V19l-4 2v-7.5z" />
+                </svg>
+            </button>
         }
         <button class="icon-btn sort" aria-label="@OrderLabel" title="@OrderLabel" @onclick="ToggleOrderAsync">
             @if (order == TypeOrder.Name)
@@ -67,7 +73,7 @@
             @foreach (var e in Shown)
             {
                 <a class="list-item" href="@(view == HomeView.Workouts ? "type" : "routine")/@e.Id">
-                    <span>@e.Name</span>
+                    <span class="@(e.Favorite ? "favorite" : null)">@e.Name</span>
                     @if (e.LastUtc is { } last)
                     {
                         <span class="muted ago">@Ago(last)</span>
@@ -77,7 +83,7 @@
         </div>
         @if (Shown.Count == 0)
         {
-            <p class="muted">@(view == HomeView.Workouts ? "No workout types yet. Tap + to add your first one." : "No routines yet.")</p>
+            <p class="muted">@EmptyMessage</p>
         }
     }
 
@@ -111,7 +117,14 @@
 
     string ViewName => view == HomeView.Workouts ? "Workouts" : "Routines";
 
-    List<ListEntry> Shown => (view == HomeView.Workouts ? types : routines)!;
+    List<ListEntry> Shown => view == HomeView.Workouts ? TypeOrdering.Filter(types!, filter) : routines!;
+
+    string EmptyMessage => view switch
+    {
+        HomeView.Routines => "No routines yet.",
+        _ when types!.Count > 0 => "All workouts are hidden. Tap the filter to show them.",
+        _ => "No workout types yet. Tap + to add your first one."
+    };
     string newName = "";
     string? error;
     bool showDialog;
@@ -121,6 +134,11 @@
 
     WorkoutState? inProgress;
     TypeOrder order;
+    TypeFilter filter;
+
+    string FilterLabel => filter == TypeFilter.HideRoutineOnly
+        ? "Hiding unstarred workouts that are in a routine. Tap to show all."
+        : "Showing all workouts. Tap to hide unstarred workouts that are in a routine.";
 
     string OrderLabel => order == TypeOrder.Name
         ? "Sorted by name. Tap to sort by last workout."
@@ -132,6 +150,7 @@
         inProgress = await Store.LoadAsync();
         routineInProgress = await Routines.LoadAsync();
         order = TypeOrdering.Parse(await JS.InvokeAsync<string?>("typeOrder.load"));
+        filter = TypeOrdering.ParseFilter(await JS.InvokeAsync<string?>("typeFilter.load"));
         view = Enum.TryParse<HomeView>(await JS.InvokeAsync<string?>("homeView.load"), out var saved) && Enum.IsDefined(saved)
             ? saved : HomeView.Workouts;
         await LoadAsync();
@@ -141,7 +160,8 @@
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         var typeRows = await db.WorkoutTypes
-            .Select(t => new ListEntry(t.Id, t.Name, t.Workouts.Max(w => (DateTime?)w.StartedAtUtc)))
+            .Select(t => new ListEntry(t.Id, t.Name, t.Workouts.Max(w => (DateTime?)w.StartedAtUtc),
+                t.IsFavorite, db.RoutineItems.Any(i => i.WorkoutTypeId == t.Id)))
             .ToListAsync();
         var routineRows = await db.Routines
             .Select(r => new ListEntry(r.Id, r.Name, r.Runs.Max(x => (DateTime?)x.StartedAtUtc)))
@@ -156,6 +176,12 @@
         if (types is not null) types = TypeOrdering.Sort(types, order);
         if (routines is not null) routines = TypeOrdering.Sort(routines, order);
         await JS.InvokeVoidAsync("typeOrder.save", order.ToString());
+    }
+
+    async Task ToggleFilterAsync()
+    {
+        filter = filter == TypeFilter.HideRoutineOnly ? TypeFilter.All : TypeFilter.HideRoutineOnly;
+        await JS.InvokeVoidAsync("typeFilter.save", filter.ToString());
     }
 
     async Task ShowAsync(HomeView shown)

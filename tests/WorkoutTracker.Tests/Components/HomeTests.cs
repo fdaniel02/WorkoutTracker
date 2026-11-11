@@ -140,6 +140,105 @@ public class HomeTests : PageTestContext
         await Database.AddWorkoutAsync(type.Id, lastUtc);
     }
 
+    async Task AddTypesForFilteringAsync()
+    {
+        var starredInRoutine = await Database.AddWorkoutTypeAsync("Burpees", favorite: true);
+        var inRoutine = await Database.AddWorkoutTypeAsync("Lunges");
+        await Database.AddWorkoutTypeAsync("Push ups");
+        await Database.AddRoutineAsync("Legs", (starredInRoutine.Id, 3, null), (inRoutine.Id, 3, null));
+    }
+
+    [Fact]
+    public async Task Unstarred_types_in_a_routine_are_hidden_by_default()
+    {
+        await AddTypesForFilteringAsync();
+
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        Assert.Equal(["Burpees", "Push ups"], TypeNames(page));
+        var filter = page.Find(".filter");
+        Assert.Equal("true", filter.GetAttribute("aria-pressed"));
+        Assert.Equal("Hiding unstarred workouts that are in a routine. Tap to show all.", filter.GetAttribute("aria-label"));
+    }
+
+    [Fact]
+    public async Task Starred_types_are_marked()
+    {
+        await AddTypesForFilteringAsync();
+
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        Assert.Equal(["Burpees"], page.FindAll(".list .favorite").Select(s => s.TextContent));
+    }
+
+    [Fact]
+    public async Task Filter_button_shows_all_and_hides_again_and_saves_each_choice()
+    {
+        await AddTypesForFilteringAsync();
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        await page.Find(".filter").ClickAsync();
+
+        Assert.Equal(["Burpees", "Lunges", "Push ups"], TypeNames(page));
+        Assert.Equal("Showing all workouts. Tap to hide unstarred workouts that are in a routine.", page.Find(".filter").GetAttribute("title"));
+        Assert.Equal("All", JSInterop.VerifyInvoke("typeFilter.save").Arguments[0]);
+
+        await page.Find(".filter").ClickAsync();
+
+        Assert.Equal(["Burpees", "Push ups"], TypeNames(page));
+        Assert.Equal("HideRoutineOnly", JSInterop.VerifyInvoke("typeFilter.save", calledTimes: 2)[1].Arguments[0]);
+    }
+
+    [Fact]
+    public async Task Saved_filter_is_used_when_the_page_opens()
+    {
+        await AddTypesForFilteringAsync();
+        JSInterop.Setup<string?>("typeFilter.load").SetResult("All");
+
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        Assert.Equal(["Burpees", "Lunges", "Push ups"], TypeNames(page));
+        Assert.Equal("false", page.Find(".filter").GetAttribute("aria-pressed"));
+    }
+
+    [Fact]
+    public async Task All_types_hidden_says_how_to_show_them()
+    {
+        var type = await Database.AddWorkoutTypeAsync("Lunges");
+        await Database.AddRoutineAsync("Legs", (type.Id, 3, null));
+
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        Assert.Empty(TypeNames(page));
+        Assert.Equal("All workouts are hidden. Tap the filter to show them.", page.Find("main > p.muted").TextContent);
+    }
+
+    [Fact]
+    public void No_types_says_how_to_add_one()
+    {
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+
+        Assert.Equal("No workout types yet. Tap + to add your first one.", page.Find("main > p.muted").TextContent);
+    }
+
+    [Fact]
+    public async Task Filter_button_is_only_on_the_workouts_tab()
+    {
+        var page = Render<Home>();
+        page.WaitForElement(".list");
+        Assert.Single(page.FindAll(".page-header .filter"));
+
+        await Button(page, "Routines").ClickAsync();
+
+        Assert.Empty(page.FindAll(".page-header .filter"));
+    }
+
     [Fact]
     public async Task Routines_tab_lists_routines_with_when_they_were_last_done_and_is_remembered()
     {

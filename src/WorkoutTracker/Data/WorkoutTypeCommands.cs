@@ -13,6 +13,16 @@ public static class WorkoutTypeCommands
         return added;
     }
 
+    public static async Task SetFavoriteAsync(this AppDbContext db, int workoutTypeId, bool favorite, CancellationToken cancellationToken = default)
+    {
+        using var activity = Telemetry.ActivitySource.StartActivity("SetWorkoutTypeFavorite");
+        activity?.SetTag("workouttracker.workout_type_id", workoutTypeId);
+        activity?.SetTag("workouttracker.favorite", favorite);
+        await db.WorkoutTypes
+            .Where(t => t.Id == workoutTypeId)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.IsFavorite, favorite), cancellationToken);
+    }
+
     static async Task<bool> AddAsync(AppDbContext db, string name, CancellationToken cancellationToken)
     {
         if (await db.WorkoutTypes.AnyAsync(t => t.Name == name, cancellationToken))

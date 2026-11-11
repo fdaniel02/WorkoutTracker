@@ -4,6 +4,7 @@ public class WorkoutType
 {
     public int Id { get; set; }
     public string Name { get; set; } = "";
+    public bool IsFavorite { get; set; }
     public List<Workout> Workouts { get; set; } = [];
 }
 
