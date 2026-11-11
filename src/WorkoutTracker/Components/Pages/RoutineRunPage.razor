@@ -76,7 +76,7 @@
     string ItemClass(RoutineItemView item) =>
         "list-item routine-item" + (IsDone(item) ? " done" : "") + (item.Id == NextItemId ? " next" : "");
 
-    string ItemHref(RoutineItemView item) => $"workout/{item.WorkoutTypeId}?item={item.Id}";
+    static string ItemHref(RoutineItemView item) => $"workout/{item.WorkoutTypeId}?item={item.Id}";
 
     protected override async Task OnInitializedAsync()
     {
