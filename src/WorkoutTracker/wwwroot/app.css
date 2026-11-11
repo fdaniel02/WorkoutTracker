@@ -48,7 +48,12 @@ h1 { font-size:1.6rem; margin:0; }
 .icon-btn:active { filter:brightness(.85); }
 .icon-btn svg { width:24px; height:24px; }
 .icon-btn.add { background:var(--accent); border-color:var(--accent); color:#fff; }
-.page-header .sort { margin-left:auto; }
+.page-header .sort, .page-header .filter { margin-left:auto; }
+.page-header .filter + .sort { margin-left:0; }
+.icon-btn.filter.active { color:var(--accent); border-color:var(--accent); }
+.icon-btn.star { flex:none; }
+.icon-btn.star.on { color:var(--warn); }
+.favorite::before { content:"★ "; color:var(--warn); }
 h1.workout-title { font-size: 2.2rem; text-align:center; }
 .muted { color:var(--muted); }
 .back { color:var(--muted); text-decoration:none; font-size:.95rem; }

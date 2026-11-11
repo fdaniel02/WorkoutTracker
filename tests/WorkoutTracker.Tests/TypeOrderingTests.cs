@@ -46,4 +46,30 @@ public class TypeOrderingTests
     [InlineData("7", TypeOrder.Name)]
     public void Parse_falls_back_to_name_for_anything_unknown(string? saved, TypeOrder expected) =>
         Assert.Equal(expected, TypeOrdering.Parse(saved));
+
+    static readonly List<ListEntry> FilterEntries =
+    [
+        new(1, "Starred in routine", null, Favorite: true, InRoutine: true),
+        new(2, "Starred", null, Favorite: true),
+        new(3, "In routine", null, InRoutine: true),
+        new(4, "Plain", null),
+    ];
+
+    [Fact]
+    public void Hiding_routine_only_drops_unstarred_types_that_are_in_a_routine_and_keeps_the_order() =>
+        Assert.Equal(["Starred in routine", "Starred", "Plain"], Names(TypeOrdering.Filter(FilterEntries, TypeFilter.HideRoutineOnly)));
+
+    [Fact]
+    public void All_keeps_every_type() =>
+        Assert.Equal(["Starred in routine", "Starred", "In routine", "Plain"], Names(TypeOrdering.Filter(FilterEntries, TypeFilter.All)));
+
+    [Theory]
+    [InlineData("HideRoutineOnly", TypeFilter.HideRoutineOnly)]
+    [InlineData("All", TypeFilter.All)]
+    [InlineData(null, TypeFilter.HideRoutineOnly)]
+    [InlineData("", TypeFilter.HideRoutineOnly)]
+    [InlineData("Something else", TypeFilter.HideRoutineOnly)]
+    [InlineData("7", TypeFilter.HideRoutineOnly)]
+    public void ParseFilter_falls_back_to_hiding_for_anything_unknown(string? saved, TypeFilter expected) =>
+        Assert.Equal(expected, TypeOrdering.ParseFilter(saved));
 }

@@ -120,6 +120,37 @@ public class WorkoutTypePageTests : PageTestContext
     }
 
     [Fact]
+    public async Task Star_button_stars_and_unstars_the_type()
+    {
+        var type = await Database.AddWorkoutTypeAsync("Push-ups");
+        var page = RenderPage(type.Id);
+        Assert.Equal("false", page.Find(".star").GetAttribute("aria-pressed"));
+        Assert.Equal("Not starred. Tap to star.", page.Find(".star").GetAttribute("aria-label"));
+
+        await page.Find(".star").ClickAsync();
+
+        page.WaitForAssertion(() => Assert.True(page.Find(".star").ClassList.Contains("on")));
+        Assert.Equal("Starred. Tap to unstar.", page.Find(".star").GetAttribute("title"));
+        Assert.True(await Database.IsFavoriteAsync(type.Id));
+
+        await page.Find(".star").ClickAsync();
+
+        page.WaitForAssertion(() => Assert.Equal("false", page.Find(".star").GetAttribute("aria-pressed")));
+        Assert.False(await Database.IsFavoriteAsync(type.Id));
+    }
+
+    [Fact]
+    public async Task Starred_type_opens_with_the_star_on()
+    {
+        var type = await Database.AddWorkoutTypeAsync("Push-ups", favorite: true);
+
+        var page = RenderPage(type.Id);
+
+        Assert.True(page.Find(".star").ClassList.Contains("on"));
+        Assert.Equal("true", page.Find(".star").GetAttribute("aria-pressed"));
+    }
+
+    [Fact]
     public async Task Month_labels_sit_above_their_week_columns()
     {
         var type = await Database.AddWorkoutTypeAsync("Push-ups");

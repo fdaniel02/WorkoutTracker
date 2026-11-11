@@ -15,7 +15,15 @@
     }
     else
     {
-        <h1>@type.Name</h1>
+        <div class="page-header">
+            <h1>@type.Name</h1>
+            <button class="icon-btn star @(type.IsFavorite ? "on" : "")" aria-label="@StarLabel" title="@StarLabel"
+                    aria-pressed="@(type.IsFavorite ? "true" : "false")" @onclick="ToggleFavoriteAsync">
+                <svg viewBox="0 0 24 24" fill="@(type.IsFavorite ? "currentColor" : "none")" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z" />
+                </svg>
+            </button>
+        </div>
         <div class="muted">@total workout@(total == 1 ? "" : "s") total</div>
 
         <Heatmap Grid="grid" Today="today" Done="done" />
@@ -44,6 +52,16 @@
     HeatmapGrid grid = null!;
     HashSet<DateOnly> done = [];
     Routine? routineInProgress;
+
+    string StarLabel => type!.IsFavorite ? "Starred. Tap to unstar." : "Not starred. Tap to star.";
+
+    async Task ToggleFavoriteAsync()
+    {
+        var favorite = !type!.IsFavorite;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        await db.SetFavoriteAsync(Id, favorite);
+        type.IsFavorite = favorite;
+    }
 
     protected override async Task OnParametersSetAsync()
     {

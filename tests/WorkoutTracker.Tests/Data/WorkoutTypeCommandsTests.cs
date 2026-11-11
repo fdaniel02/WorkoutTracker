@@ -77,6 +77,41 @@ public sealed class WorkoutTypeCommandsTests(SqlServerFixture sqlServer) : IAsyn
         Assert.Equal([true, false], spans.Stopped.Select(s => s.GetTagItem("workouttracker.added")));
     }
 
+    [Fact]
+    public async Task Favorite_is_set_and_cleared_only_on_its_type()
+    {
+        await using var db = NewContext();
+        await db.TryAddWorkoutTypeAsync("Push ups", TestContext.Current.CancellationToken);
+        await db.TryAddWorkoutTypeAsync("Squats", TestContext.Current.CancellationToken);
+        var pushUps = await db.WorkoutTypes.Where(t => t.Name == "Push ups").Select(t => t.Id).SingleAsync(TestContext.Current.CancellationToken);
+
+        await db.SetFavoriteAsync(pushUps, true, TestContext.Current.CancellationToken);
+        Assert.Equal(["Push ups"], await FavoritesAsync());
+
+        await db.SetFavoriteAsync(pushUps, false, TestContext.Current.CancellationToken);
+        Assert.Empty(await FavoritesAsync());
+    }
+
+    [Fact]
+    public async Task Setting_a_favorite_records_a_span()
+    {
+        await using var db = NewContext();
+        await db.TryAddWorkoutTypeAsync("Planks", TestContext.Current.CancellationToken);
+        var id = await db.WorkoutTypes.Where(t => t.Name == "Planks").Select(t => t.Id).SingleAsync(TestContext.Current.CancellationToken);
+        using var spans = new ActivityCollector(a => a.OperationName == "SetWorkoutTypeFavorite" && Equals(a.GetTagItem("workouttracker.workout_type_id"), id));
+
+        await db.SetFavoriteAsync(id, true, TestContext.Current.CancellationToken);
+
+        var span = Assert.Single(spans.Stopped);
+        Assert.True(span.GetTagItem("workouttracker.favorite") is true);
+    }
+
+    async Task<List<string>> FavoritesAsync()
+    {
+        await using var db = NewContext();
+        return await db.WorkoutTypes.Where(t => t.IsFavorite).Select(t => t.Name).ToListAsync(TestContext.Current.CancellationToken);
+    }
+
     sealed class BeforeSaveInterceptor(Func<Task> beforeSave) : SaveChangesInterceptor
     {
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
