@@ -1,24 +1,27 @@
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace WorkoutTracker.Data;
 
 public static class SqlErrors
 {
-    const int DuplicateKeyInUniqueIndex = 2601;
-    const int UniqueConstraintViolated = 2627;
-    const int CannotOpenDatabase = 4060;
-    const int LoginFailed = 18456;
-    const int AccountLocked = 18486;
-    const int PasswordExpired = 18487;
-    const int PasswordMustChange = 18488;
+    static readonly HashSet<string> Permanent =
+    [
+        PostgresErrorCodes.InvalidPassword,
+        PostgresErrorCodes.InvalidAuthorizationSpecification,
+        PostgresErrorCodes.InvalidCatalogName,
+        PostgresErrorCodes.InsufficientPrivilege
+    ];
 
-    static readonly HashSet<int> Permanent = [CannotOpenDatabase, LoginFailed, AccountLocked, PasswordExpired, PasswordMustChange];
-
-    // Anything that isn't a SqlException (e.g. a malformed connection string) won't go away by waiting either.
-    public static bool IsPermanent(Exception exception) =>
-        exception is not SqlException sql || Permanent.Contains(sql.Number);
+    // An NpgsqlException that isn't a PostgresException never got an answer from the server (refused, timed out), so
+    // waiting may help. Anything else (e.g. a malformed connection string) won't go away by waiting either.
+    public static bool IsPermanent(Exception exception) => exception switch
+    {
+        PostgresException postgres => Permanent.Contains(postgres.SqlState),
+        NpgsqlException => false,
+        _ => true
+    };
 
     public static bool IsUniqueViolation(DbUpdateException exception) =>
-        exception.InnerException is SqlException { Number: DuplicateKeyInUniqueIndex or UniqueConstraintViolated };
+        exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 }

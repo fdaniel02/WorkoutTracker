@@ -5,8 +5,8 @@ using WorkoutTracker.Data;
 
 namespace WorkoutTracker.Tests.Data;
 
-// SQLite in memory: fast, but not SQL Server. Collation (case sensitivity) and query translation differ,
-// so tests about database behaviour itself need a real SQL Server.
+// SQLite in memory: fast, but not PostgreSQL. Query translation differs, so tests about database behaviour itself
+// need a real PostgreSQL.
 public sealed class TestDatabase : IDbContextFactory<AppDbContext>, IDisposable
 {
     // The in-memory database exists only while this connection is open.
@@ -18,6 +18,8 @@ public sealed class TestDatabase : IDbContextFactory<AppDbContext>, IDisposable
     public TestDatabase(params IInterceptor[] interceptors)
     {
         connection.Open();
+        // The model's name columns use this collation; SQLite needs it defined before the tables are created.
+        connection.CreateCollation(AppDbContext.CaseInsensitive, (x, y) => string.Compare(x, y, StringComparison.OrdinalIgnoreCase));
         testOptions = new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).Options;
         appOptions = new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).AddInterceptors(interceptors).Options;
         using var db = new AppDbContext(testOptions);

@@ -4,14 +4,14 @@ using WorkoutTracker.Data;
 
 namespace WorkoutTracker.Tests.Data;
 
-// SQL Server, not SQLite: the unique index error and the case-insensitive collation are what's being tested.
-[Collection("SqlServer")]
-public sealed class WorkoutTypeCommandsTests(SqlServerFixture sqlServer) : IAsyncLifetime
+// PostgreSQL, not SQLite: the unique index error and the case-insensitive collation are what's being tested.
+[Collection("Postgres")]
+public sealed class WorkoutTypeCommandsTests(PostgresFixture postgres) : IAsyncLifetime
 {
-    readonly string connectionString = sqlServer.ConnectionString(SqlServerFixture.NewDatabaseName());
+    readonly string connectionString = postgres.ConnectionString(PostgresFixture.NewDatabaseName());
 
     AppDbContext NewContext(params IInterceptor[] interceptors) =>
-        new(new DbContextOptionsBuilder<AppDbContext>().UseSqlServer(connectionString).AddInterceptors(interceptors).Options);
+        new(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connectionString).AddInterceptors(interceptors).Options);
 
     public async ValueTask InitializeAsync()
     {
