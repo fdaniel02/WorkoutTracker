@@ -4,14 +4,22 @@ using WorkoutTracker.Data;
 
 namespace WorkoutTracker.Tests.Data;
 
-public class SqlServerSetupTests
+public class DatabaseSetupTests
 {
     static IConfiguration Configuration(string? connectionString) =>
         new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["ConnectionStrings:Default"] = connectionString }).Build();
 
     static AppDbContext Context(bool retryOnFailure) =>
         new(new DbContextOptionsBuilder<AppDbContext>()
-            .UseAppDatabase(Configuration("Server=localhost;Database=WorkoutTracker"), retryOnFailure).Options);
+            .UseAppDatabase(Configuration("Host=localhost;Database=workouttracker"), retryOnFailure).Options);
+
+    [Fact]
+    public void Uses_PostgreSQL()
+    {
+        using var db = Context(retryOnFailure: true);
+
+        Assert.True(db.Database.IsNpgsql());
+    }
 
     [Fact]
     public void Retries_on_failure_when_asked()

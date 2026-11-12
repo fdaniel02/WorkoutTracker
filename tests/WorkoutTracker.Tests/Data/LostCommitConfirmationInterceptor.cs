@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 namespace WorkoutTracker.Tests.Data;
 
 // The first INSERT into the table completes (and commits), then fails as if the connection dropped before the
-// confirmation arrived. SQL Server's retrying execution strategy treats a TimeoutException as transient.
+// confirmation arrived. Npgsql's retrying execution strategy treats a TimeoutException as transient.
 public sealed class LostCommitConfirmationInterceptor(string table = "Workouts") : DbCommandInterceptor
 {
     int failed;
@@ -12,7 +12,7 @@ public sealed class LostCommitConfirmationInterceptor(string table = "Workouts")
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command, CommandExecutedEventData eventData,
         DbDataReader result, CancellationToken cancellationToken = default)
     {
-        if (command.CommandText.Contains($"INSERT INTO [{table}]") && Interlocked.Exchange(ref failed, 1) == 0)
+        if (command.CommandText.Contains($"INSERT INTO \"{table}\"") && Interlocked.Exchange(ref failed, 1) == 0)
         {
             // Closing the reader finishes the statement, so the row is committed before the "lost" confirmation.
             await result.DisposeAsync();

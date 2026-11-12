@@ -5,13 +5,13 @@ using WorkoutTracker.Data;
 
 namespace WorkoutTracker.Tests.Data;
 
-// SQL Server, not SQLite: the unique index error and EF's retrying execution strategy are what's being tested.
-[Collection("SqlServer")]
-public sealed class WorkoutCommandsTests(SqlServerFixture sqlServer) : IAsyncLifetime
+// PostgreSQL, not SQLite: the unique index error and EF's retrying execution strategy are what's being tested.
+[Collection("Postgres")]
+public sealed class WorkoutCommandsTests(PostgresFixture postgres) : IAsyncLifetime
 {
     static readonly DateTime Started = new(2026, 10, 21, 7, 0, 0, DateTimeKind.Utc);
 
-    readonly string connectionString = sqlServer.ConnectionString(SqlServerFixture.NewDatabaseName());
+    readonly string connectionString = postgres.ConnectionString(PostgresFixture.NewDatabaseName());
     int typeId;
 
     // The same retry settings as the app's pages.

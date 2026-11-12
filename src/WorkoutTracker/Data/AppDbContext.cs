@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace WorkoutTracker.Data;
 
@@ -12,11 +13,22 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<RoutineRun> RoutineRuns => Set<RoutineRun>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 
+    // "Push ups" and "push ups" are the same name: the unique indexes and lookups by name ignore case.
+    public const string CaseInsensitive = "case_insensitive";
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // Every DateTime here is UTC. Npgsql refuses to write any other Kind to a timestamptz column, and a value
+        // can lose its Kind on the way, e.g. in the workout state the browser keeps.
+        configurationBuilder.Properties<DateTime>().HaveConversion<UtcConverter>();
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.HasCollation(CaseInsensitive, locale: "und-u-ks-level2", provider: "icu", deterministic: false);
         modelBuilder.Entity<WorkoutType>(e =>
         {
-            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired().UseCollation(CaseInsensitive);
             e.HasIndex(x => x.Name).IsUnique();
         });
         modelBuilder.Entity<Workout>(e =>
@@ -28,7 +40,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         });
         modelBuilder.Entity<Routine>(e =>
         {
-            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired().UseCollation(CaseInsensitive);
             e.HasIndex(x => x.Name).IsUnique();
         });
         modelBuilder.Entity<RoutineItem>(e =>
@@ -47,4 +59,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.ClientId).IsUnique();
         });
     }
+
+    sealed class UtcConverter() : ValueConverter<DateTime, DateTime>(
+        v => DateTime.SpecifyKind(v, DateTimeKind.Utc), v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 }
